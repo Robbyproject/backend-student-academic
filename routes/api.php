@@ -14,3 +14,4 @@ Route::get('/user', function (Request $request) {
 Route::get('/tasks', [TaskController::class, 'index']);
 Route::get('/schedules', [ScheduleController::class, 'index']);
 Route::get('/academic-classes', [AcademicClassController::class, 'index']);
+Route::get('/academic-classes/{id}',[AcademicClassController::class, 'show']);
