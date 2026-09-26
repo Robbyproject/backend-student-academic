@@ -66,7 +66,7 @@ public function index()
     }
 
     //mengambil detail satu kelas
-    public function show($id)
+    public function show(string $id)
     {
         $class = DB::table('tb_kelas as k')
             ->join('tb_matkul as mk', 'k.matkul_id', '=', 'mk.id')
