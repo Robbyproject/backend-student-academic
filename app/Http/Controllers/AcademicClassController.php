@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class AcademicClassController extends Controller
 {
     // mengambil semua kelas
-public function index()
+    public function index()
     {
         $classes = DB::table('tb_kelas as k')
             ->join('tb_matkul as mk', 'k.matkul_id', '=', 'mk.id')
@@ -103,5 +105,92 @@ public function index()
             'nama_dosen' => $class->nama_dosen,
             'jumlah_mahasiswa' => $jumlahMahasiswa,
         ]);
+    }
+
+    // AMBIL DOSEN SESUAI JURUSAN MATA KULIAH
+    public function lecturersByCourse(string $matkulId)
+    {
+        $matkul = DB::table('tb_matkul')
+            ->where('id', $matkulId)
+            ->first();
+
+        if (!$matkul) {
+            return response()->json([
+                'message' => 'Mata kuliah tidak ditemukan'
+            ], 404);
+        }
+
+        $dosen = DB::table('tb_dosen')
+            ->where('jurusan_id', $matkul->jurusan_id)
+            ->select(
+                'id',
+                'nama',
+                'nidn'
+            )
+            ->orderBy('nama')
+            ->get();
+
+        return response()->json($dosen);
+    }
+
+    // BUAT KELAS BARU
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'matkul_id' => ['required', 'uuid'],
+            'dosen_id' => ['required', 'uuid'],
+            'nama_kelas' => ['required', 'string', 'max:255'],
+            'tahun_ajaran' => ['required', 'string', 'max:20'],
+        ]);
+
+        // Cari mata kuliah
+        $matkul = DB::table('tb_matkul')
+            ->where('id', $validated['matkul_id'])
+            ->first();
+
+        if (!$matkul) {
+            return response()->json([
+                'message' => 'Mata kuliah tidak ditemukan'
+            ], 404);
+        }
+
+        // Cari dosen
+        $dosen = DB::table('tb_dosen')
+            ->where('id', $validated['dosen_id'])
+            ->first();
+
+        if (!$dosen) {
+            return response()->json([
+                'message' => 'Dosen tidak ditemukan'
+            ], 404);
+        }
+
+        // Pastikan dosen dan mata kuliah berasal dari jurusan yang sama
+        if ($dosen->jurusan_id !== $matkul->jurusan_id) {
+            return response()->json([
+                'message' => 'Dosen tidak berasal dari jurusan mata kuliah tersebut'
+            ], 422);
+        }
+
+        $id = (string) Str::uuid();
+
+        DB::table('tb_kelas')->insert([
+            'id' => $id,
+            'matkul_id' => $validated['matkul_id'],
+            'dosen_id' => $validated['dosen_id'],
+            'nama_kelas' => $validated['nama_kelas'],
+            'tahun_ajaran' => $validated['tahun_ajaran'],
+        ]);
+
+        return response()->json([
+            'message' => 'Kelas berhasil dibuat',
+            'data' => [
+                'id' => $id,
+                'nama_kelas' => $validated['nama_kelas'],
+                'tahun_ajaran' => $validated['tahun_ajaran'],
+                'matkul_id' => $validated['matkul_id'],
+                'dosen_id' => $validated['dosen_id'],
+            ]
+        ], 201);
     }
 }

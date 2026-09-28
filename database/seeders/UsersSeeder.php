@@ -11,9 +11,9 @@ class UsersSeeder extends Seeder
     {
         // Update user
         DB::table('tb_users')
-            ->where('email', 'MadyaPrayogie@gmail.com')
+            ->where('email', 'satya.pratama@university.edu')
             ->update([
-                'email' => 'satya.pratama@university.edu',
+                'password' => 'Satya123', // (Ini password tidak bisa)
             ]);
 
         $this->command->info('data user berhasil diperbarui.');
