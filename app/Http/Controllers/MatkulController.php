@@ -8,7 +8,7 @@ class MatkulController extends Controller
 {
     public function index()
     {
-        $matkul = DB::table('tb_matkul')
+        $matkul = DB::table('matkul')
             ->select(
                 'id',
                 'kode_matkul',

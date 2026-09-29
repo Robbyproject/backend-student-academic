@@ -8,22 +8,20 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('tb_matkul', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->string('kode_matkul', 50)->unique();
-            $table->string('nama_matkul', 255);
-            $table->integer('sks');
-            $table->uuid('jurusan_id');
-            $table->timestamp('created_at')->useCurrent();
-            $table->foreign('jurusan_id')
-                ->references('id')
-                ->on('tb_jurusan')
-                ->onDelete('restrict');
-        });
+    Schema::create('matkul', function (Blueprint $table) {
+        $table->id();
+        $table->string('kode_matkul', 50)->unique();
+        $table->string('nama_matkul', 255);
+        $table->integer('sks');
+        $table->foreignId('jurusan_id')
+            ->constrained('jurusan')
+            ->restrictOnDelete();
+        $table->timestamp('created_at')->useCurrent();
+    });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('tb_matkul');
+        Schema::dropIfExists('matkul');
     }
 };

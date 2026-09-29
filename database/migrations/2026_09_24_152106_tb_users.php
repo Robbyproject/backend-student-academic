@@ -8,18 +8,16 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('tb_users', function (Blueprint $table) {
-            $table->uuid('id')->primary();
+        Schema::create('users', function (Blueprint $table) {
+            $table->id();
             $table->string('email', 255)->unique();
             $table->string('password', 255);
-            $table->string('role', 20);
+            $table->enum('role', ['admin', 'dosen', 'mahasiswa'])->default('mahasiswa');
             $table->timestamp('created_at')->useCurrent();
             $table->timestamp('updated_at')->useCurrent();
         });
+
+        
     }
 
-    public function down(): void
-    {
-        Schema::dropIfExists('tb_users');
-    }
 };

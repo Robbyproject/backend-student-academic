@@ -8,8 +8,8 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('tb_jurusan', function (Blueprint $table) {
-            $table->uuid('id')->primary();
+        Schema::create('jurusan', function (Blueprint $table) {
+            $table->id();
             $table->string('kode_jurusan', 50)->unique();
             $table->string('nama_jurusan', 255);
             $table->timestamp('created_at')->useCurrent();
@@ -18,6 +18,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('tb_jurusan');
+        Schema::dropIfExists('jurusan');
     }
 };

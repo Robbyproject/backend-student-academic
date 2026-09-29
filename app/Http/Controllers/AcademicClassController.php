@@ -11,10 +11,10 @@ class AcademicClassController extends Controller
     // mengambil semua kelas
     public function index()
     {
-        $classes = DB::table('tb_kelas as k')
-            ->join('tb_matkul as mk', 'k.matkul_id', '=', 'mk.id')
-            ->join('tb_dosen as d', 'k.dosen_id', '=', 'd.id')
-            ->leftJoin('tb_jadwal as j', 'k.id', '=', 'j.kelas_id')
+        $classes = DB::table('kelas as k')
+            ->join('matkul as mk', 'k.matkul_id', '=', 'mk.id')
+            ->join('dosen as d', 'k.dosen_id', '=', 'd.id')
+            ->leftJoin('jadwal as j', 'k.id', '=', 'j.kelas_id')
             ->select(
                 'k.id',
                 'k.nama_kelas',
@@ -70,9 +70,9 @@ class AcademicClassController extends Controller
     //mengambil detail satu kelas
     public function show(string $id)
     {
-        $class = DB::table('tb_kelas as k')
-            ->join('tb_matkul as mk', 'k.matkul_id', '=', 'mk.id')
-            ->join('tb_dosen as d', 'k.dosen_id', '=', 'd.id')
+        $class = DB::table('kelas as k')
+            ->join('matkul as mk', 'k.matkul_id', '=', 'mk.id')
+            ->join('dosen as d', 'k.dosen_id', '=', 'd.id')
             ->where('k.id', $id)
             ->select(
                 'k.id',
@@ -91,7 +91,7 @@ class AcademicClassController extends Controller
             ], 404);
         }
 
-        $jumlahMahasiswa = DB::table('tb_peserta_kelas')
+        $jumlahMahasiswa = DB::table('peserta_kelas')
             ->where('kelas_id', $id)
             ->count();
 
@@ -110,7 +110,7 @@ class AcademicClassController extends Controller
     // AMBIL DOSEN SESUAI JURUSAN MATA KULIAH
     public function lecturersByCourse(string $matkulId)
     {
-        $matkul = DB::table('tb_matkul')
+        $matkul = DB::table('matkul')
             ->where('id', $matkulId)
             ->first();
 
@@ -120,7 +120,7 @@ class AcademicClassController extends Controller
             ], 404);
         }
 
-        $dosen = DB::table('tb_dosen')
+        $dosen = DB::table('dosen')
             ->where('jurusan_id', $matkul->jurusan_id)
             ->select(
                 'id',
@@ -137,14 +137,14 @@ class AcademicClassController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'matkul_id' => ['required', 'uuid'],
-            'dosen_id' => ['required', 'uuid'],
+            'matkul_id' => ['required', 'id'],
+            'dosen_id' => ['required', 'id'],
             'nama_kelas' => ['required', 'string', 'max:255'],
             'tahun_ajaran' => ['required', 'string', 'max:20'],
         ]);
 
         // Cari mata kuliah
-        $matkul = DB::table('tb_matkul')
+        $matkul = DB::table('matkul')
             ->where('id', $validated['matkul_id'])
             ->first();
 
@@ -155,7 +155,7 @@ class AcademicClassController extends Controller
         }
 
         // Cari dosen
-        $dosen = DB::table('tb_dosen')
+        $dosen = DB::table('dosen')
             ->where('id', $validated['dosen_id'])
             ->first();
 
@@ -172,9 +172,9 @@ class AcademicClassController extends Controller
             ], 422);
         }
 
-        $id = (string) Str::uuid();
+        $id = (string) Str::id();
 
-        DB::table('tb_kelas')->insert([
+        DB::table('kelas')->insert([
             'id' => $id,
             'matkul_id' => $validated['matkul_id'],
             'dosen_id' => $validated['dosen_id'],

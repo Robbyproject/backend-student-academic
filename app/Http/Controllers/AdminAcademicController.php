@@ -11,7 +11,7 @@ class AdminAcademicController extends Controller
     public function data()
     {
         return response()->json([
-            'jurusan' => DB::table('tb_jurusan')
+            'jurusan' => DB::table('jurusan')
                 ->select(
                     'id',
                     'kode_jurusan',
@@ -20,7 +20,7 @@ class AdminAcademicController extends Controller
                 ->orderBy('nama_jurusan')
                 ->get(),
 
-            'dosen' => DB::table('tb_dosen')
+            'dosen' => DB::table('dosen')
                 ->select(
                     'id',
                     'nama',
@@ -30,7 +30,7 @@ class AdminAcademicController extends Controller
                 ->orderBy('nama')
                 ->get(),
 
-            'matkul' => DB::table('tb_matkul')
+            'matkul' => DB::table('matkul')
                 ->select(
                     'id',
                     'kode_matkul',
@@ -46,8 +46,8 @@ class AdminAcademicController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'dosen_id' => 'required|uuid',
-            'matkul_id' => 'required|uuid',
+            'dosen_id' => 'required|id',
+            'matkul_id' => 'required|id',
             'nama_kelas' => 'required|string|max:255',
             'tahun_ajaran' => 'required|string|max:20',
 
@@ -57,7 +57,7 @@ class AdminAcademicController extends Controller
             'ruangan' => 'required|string|max:50',
         ]);
 
-        $dosen = DB::table('tb_dosen')
+        $dosen = DB::table('dosen')
             ->where('id', $validated['dosen_id'])
             ->first();
 
@@ -67,7 +67,7 @@ class AdminAcademicController extends Controller
             ], 404);
         }
 
-        $matkul = DB::table('tb_matkul')
+        $matkul = DB::table('matkul')
             ->where('id', $validated['matkul_id'])
             ->first();
 
@@ -85,13 +85,13 @@ class AdminAcademicController extends Controller
             ], 422);
         }
 
-        $kelasId = (string) Str::uuid();
+        $kelasId = (string) Str::id();
 
         DB::transaction(function () use (
             $validated,
             $kelasId
         ) {
-            DB::table('tb_kelas')->insert([
+            DB::table('kelas')->insert([
                 'id' => $kelasId,
                 'matkul_id' => $validated['matkul_id'],
                 'dosen_id' => $validated['dosen_id'],
@@ -99,8 +99,8 @@ class AdminAcademicController extends Controller
                 'tahun_ajaran' => $validated['tahun_ajaran'],
             ]);
 
-            DB::table('tb_jadwal')->insert([
-                'id' => (string) Str::uuid(),
+            DB::table('_jadwal')->insert([
+                'id' => (string) Str::id(),
                 'kelas_id' => $kelasId,
                 'hari' => $validated['hari'],
                 'jam_mulai' => $validated['jam_mulai'],

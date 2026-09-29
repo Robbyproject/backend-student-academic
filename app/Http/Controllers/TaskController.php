@@ -9,7 +9,7 @@ class TaskController extends Controller
 {
     public function index()
     {
-        $tasks = DB::table('tb_tugas as t')
+        $tasks = DB::table('tugas as t')
             ->join('tb_kelas as k', 't.kelas_id', '=', 'k.id')
             ->join('tb_matkul as mk', 'k.matkul_id', '=', 'mk.id')
             ->select(
