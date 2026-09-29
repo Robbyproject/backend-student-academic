@@ -38,3 +38,5 @@ Route::post(
     '/admin/academic-classes',
     [AdminAcademicController::class, 'store']
 );
+
+Route::get('/tasks/{mahasiswaId}', [TaskController::class, 'index']);

@@ -46,8 +46,8 @@ class AdminAcademicController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'dosen_id' => 'required|id',
-            'matkul_id' => 'required|id',
+            'dosen_id' => 'required| interger',
+            'matkul_id' => 'required| interger',
             'nama_kelas' => 'required|string|max:255',
             'tahun_ajaran' => 'required|string|max:20',
 
