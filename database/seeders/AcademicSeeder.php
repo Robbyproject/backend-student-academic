@@ -5,7 +5,6 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 
 class AcademicSeeder extends Seeder
 {
@@ -17,18 +16,18 @@ class AcademicSeeder extends Seeder
             | 1. JURUSAN
             */
 
-            $jurusan = DB::table('tb_jurusan')->first();
+            $jurusan = DB::table('jurusan')
+                ->where('kode_jurusan', 'IF')
+                ->first();
 
             if (!$jurusan) {
-                $jurusanId = (string) Str::uuid();
-                DB::table('tb_jurusan')->insert([
-                    'id' => $jurusanId,
+                $jurusanId = DB::table('jurusan')->insertGetId([
                     'kode_jurusan' => 'IF',
                     'nama_jurusan' => 'Informatika',
                     'created_at' => now(),
                 ]);
 
-                $jurusan = DB::table('tb_jurusan')
+                $jurusan = DB::table('jurusan')
                     ->where('id', $jurusanId)
                     ->first();
             }
@@ -37,22 +36,21 @@ class AcademicSeeder extends Seeder
             | 2. USER DOSEN
             */
 
-            // user yang sudah memiliki role dosen
-            $userDosen = DB::table('tb_users')
+            $userDosen = DB::table('users')
                 ->where('role', 'dosen')
                 ->first();
 
-            //user dummy dosen
+            // User dummy dosen
             if (!$userDosen) {
-                $userDosenId = (string) Str::uuid();
-                DB::table('tb_users')->insert([
-                    'id' => $userDosenId,
-                    'email' => 'MadyaPrayogie@gmail.com',
+                $userDosenId = DB::table('users')->insertGetId([
+                    'email' => 'Satya@gmail.com',
                     'password' => Hash::make('password123'),
                     'role' => 'dosen',
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
 
-                $userDosen = DB::table('tb_users')
+                $userDosen = DB::table('users')
                     ->where('id', $userDosenId)
                     ->first();
             }
@@ -61,21 +59,20 @@ class AcademicSeeder extends Seeder
             | 3. DATA DOSEN
             */
 
-            $dosen = DB::table('tb_dosen')
+            $dosen = DB::table('dosen')
                 ->where('user_id', $userDosen->id)
                 ->first();
 
             if (!$dosen) {
-                $dosenId = (string) Str::uuid();
-                DB::table('tb_dosen')->insert([
-                    'id' => $dosenId,
+                $dosenId = DB::table('dosen')->insertGetId([
                     'user_id' => $userDosen->id,
                     'nidn' => '0123456789',
-                    'nama' => 'Madya Prayogie',
+                    'nama' => 'Satya Pratama',
                     'jurusan_id' => $jurusan->id,
+                    'created_at' => now(),
                 ]);
 
-                $dosen = DB::table('tb_dosen')
+                $dosen = DB::table('dosen')
                     ->where('id', $dosenId)
                     ->first();
             }
@@ -84,10 +81,7 @@ class AcademicSeeder extends Seeder
             | 4. DATA MATA KULIAH
             */
 
-            $matkulId = (string) Str::uuid();
-
-            DB::table('tb_matkul')->insert([
-                'id' => $matkulId,
+            $matkulId = DB::table('matkul')->insertGetId([
                 'kode_matkul' => 'SDLC4',
                 'nama_matkul' => 'Software Development Life Cycle',
                 'sks' => 3,
@@ -99,10 +93,7 @@ class AcademicSeeder extends Seeder
             | 5. DATA KELAS
             */
 
-            $kelasId = (string) Str::uuid();
-
-            DB::table('tb_kelas')->insert([
-                'id' => $kelasId,
+            $kelasId = DB::table('kelas')->insertGetId([
                 'matkul_id' => $matkulId,
                 'dosen_id' => $dosen->id,
                 'nama_kelas' => 'SDLC4 - Computer Lab',
@@ -114,8 +105,7 @@ class AcademicSeeder extends Seeder
             | 6. DATA JADWAL
             */
 
-            DB::table('tb_jadwal')->insert([
-                'id' => (string) Str::uuid(),
+            DB::table('jadwal')->insert([
                 'kelas_id' => $kelasId,
                 'hari' => 'Senin',
                 'jam_mulai' => '08:30:00',
@@ -124,37 +114,16 @@ class AcademicSeeder extends Seeder
                 'created_at' => now(),
             ]);
 
-            DB::table('tb_jadwal')->insert([
-                'id' => (string) Str::uuid(),
-                'kelas_id' => $kelasId,
-                'hari' => 'Rabu',
-                'jam_mulai' => '13:00:00',
-                'jam_selesai' => '15:30:00',
-                'ruangan' => 'Ruang Sumbawa',
-                'created_at' => now(),
-            ]);
-
             /*
             | 7. DATA TUGAS
             */
 
-            DB::table('tb_tugas')->insert([
-                'id' => (string) Str::uuid(),
+            DB::table('tugas')->insert([
                 'kelas_id' => $kelasId,
-                'judul' => 'Tugas Membuat Dashboard React',
-                'deskripsi' => 'Membuat dashboard akademik menggunakan React dan TypeScript.',
+                'judul' => 'Tugas Analisis and Planning SDLC',
+                'deskripsi' => 'Membuat analisis dan perencanaan untuk proyek SDLC.',
                 'file_attachment_path' => null,
                 'deadline' => '2026-09-30 23:59:00',
-                'created_at' => now(),
-            ]);
-
-            DB::table('tb_tugas')->insert([
-                'id' => (string) Str::uuid(),
-                'kelas_id' => $kelasId,
-                'judul' => 'Tugas Integrasi API Laravel',
-                'deskripsi' => 'Menghubungkan frontend React dengan API Laravel.',
-                'file_attachment_path' => null,
-                'deadline' => '2026-10-05 23:59:00',
                 'created_at' => now(),
             ]);
         });

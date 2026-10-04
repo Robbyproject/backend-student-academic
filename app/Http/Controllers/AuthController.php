@@ -4,73 +4,55 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
-    // 1. Form Register
-    public function showRegister()
-    {
-        return view('auth.register');
-    }
-
-    // 2. Proses Register
-    public function register(Request $request)
-    {
-        $request->validate([
-            'name'     => 'required|string|max:255',
-            
-            'email'    => 'required|string|email:dns|unique:users,email',
-            
-            'password' => 'required|min:6',
-            'role'     => 'required|in:admin,dosen,mahasiswa',
-        ], [
-            'email.email' => 'Format email harus valid dan memiliki domain lengkap (contoh: name@gmail.com).',
-        ]);
-
-        User::create([
-            'name'     => $request->name,
-            'email'    => $request->email,
-            'password' => Hash::make($request->password),
-            'role'     => $request->role,
-        ]);
-
-        return redirect()->route('login')->with('success', 'Registrasi berhasil! Silakan login.');
-    }
-
-    // 3. Form Login
-    public function showLogin()
-    {
-        return view('auth.login');
-    }
-
-    // 4. Proses Login
+    // 1. Proses Login API (Mengembalikan Sanctum Token)
     public function login(Request $request)
     {
-        $credentials = $request->validate([
-            'email'    => ['required', 'string', 'email', 'regex:/^[\w\.-]+@[\w\.-]+\.[a-zA-Z0-9]{2,}$/'],
-            'password' => 'required',
+        $request->validate([
+            'email'    => ['required', 'string', 'email'],
+            'password' => ['required', 'string'],
         ], [
-            'email.regex' => 'Format email tidak valid. Gunakan domain yang benar (contoh: user@gmail.com).',
-            'email.email' => 'Format email tidak valid.',
+            'email.required'    => 'Email wajib diisi.',
+            'email.email'       => 'Format email tidak valid.',
+            'password.required' => 'Password wajib diisi.',
         ]);
 
-        if (Auth::attempt(['email' => $request->email, 'password' => $request->password])) {
-            $request->session()->regenerate();
-            return redirect()->intended('/dashboard');
+        $user = User::where('email', $request->email)->first();
+
+        // Cek user & kecocokan password
+        if (!$user || !Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'message' => 'Email atau password salah!'
+            ], 401);
         }
 
-        return back()->withErrors(['email' => 'Email atau password salah!'])->withInput($request->only('email'));
+        // Buat Sanctum Auth Token
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        return response()->json([
+            'message'      => 'Login berhasil',
+            'access_token' => $token,
+            'token_type'   => 'Bearer',
+            'user'         => [
+                'id'    => $user->id,
+                'name'  => $user->name,
+                'email' => $user->email,
+                'role'  => $user->role,
+            ]
+        ], 200);
     }
 
-    // 5. Proses Logout
+    // 2. Proses Logout API (Menghapus Token Aktif)
     public function logout(Request $request)
     {
-        Auth::logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        // Menghapus token yang sedang digunakan untuk request ini
+        $request->user()->currentAccessToken()->delete();
 
-        return redirect()->route('login');
+        return response()->json([
+            'message' => 'Berhasil logout'
+        ], 200);
     }
 }

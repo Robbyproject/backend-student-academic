@@ -8,26 +8,22 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('tb_kelas', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('matkul_id');
-            $table->uuid('dosen_id');
-            $table->string('nama_kelas', 50);
-            $table->string('tahun_ajaran', 20);
-            $table->timestamp('created_at')->useCurrent();
-            $table->foreign('matkul_id')
-                ->references('id')
-                ->on('tb_matkul')
-                ->onDelete('cascade');
-            $table->foreign('dosen_id')
-                ->references('id')
-                ->on('tb_dosen')
-                ->onDelete('restrict');
-        });
+    Schema::create('kelas', function (Blueprint $table) {
+        $table->id();
+        $table->foreignId('matkul_id')
+            ->constrained('matkul')
+            ->cascadeOnDelete();
+        $table->foreignId('dosen_id')
+            ->constrained('dosen')
+            ->restrictOnDelete();
+        $table->string('nama_kelas', 50);
+        $table->string('tahun_ajaran', 20);
+        $table->timestamp('created_at')->useCurrent();
+    });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('tb_kelas');
+        Schema::dropIfExists('kelas');
     }
 };

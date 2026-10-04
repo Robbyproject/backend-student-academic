@@ -11,18 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('tb_tugas', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('kelas_id');
+        Schema::create('tugas', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('kelas_id')
+                ->constrained('kelas')
+                ->cascadeOnDelete();
             $table->string('judul', 255);
             $table->text('deskripsi')->nullable();
             $table->text('file_attachment_path')->nullable();
             $table->timestamp('deadline');
             $table->timestamp('created_at')->useCurrent();
-            $table->foreign('kelas_id')
-                ->references('id')
-                ->on('tb_kelas')
-                ->onDelete('cascade');
         });
     }
 
@@ -31,6 +29,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('tb_tugas');
+        Schema::dropIfExists('tugas');
     }
 };

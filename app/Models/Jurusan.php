@@ -6,6 +6,6 @@ use Illuminate\Database\Eloquent\Model;
 
 class Jurusan extends Model
 {
-    protected $table = 'tb_jurusan';
+    protected $table = 'jurusan';
     protected $guarded = ['id'];
 }       

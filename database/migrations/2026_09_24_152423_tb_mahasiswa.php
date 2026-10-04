@@ -8,27 +8,24 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('tb_mahasiswa', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('user_id')->unique();
+        Schema::create('mahasiswa', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')
+                ->unique()
+                ->constrained('users')
+                ->cascadeOnDelete();
             $table->string('nim', 50)->unique();
             $table->string('nama', 255);
-            $table->uuid('jurusan_id');
+            $table->foreignId('jurusan_id')
+                ->constrained('jurusan')
+                ->restrictOnDelete();
             $table->integer('angkatan');
             $table->timestamp('created_at')->useCurrent();
-            $table->foreign('user_id')
-                ->references('id')
-                ->on('tb_users')
-                ->onDelete('cascade');
-            $table->foreign('jurusan_id')
-                ->references('id')
-                ->on('tb_jurusan')
-                ->onDelete('restrict');
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('tb_mahasiswa');
+        Schema::dropIfExists('mahasiswa');
     }
 };
