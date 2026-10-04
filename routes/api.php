@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\AcademicClassController;
 use App\Http\Controllers\AdminAcademicController;
+use App\Http\Controllers\AdminKrsController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\KrsController;
 use App\Http\Controllers\MatkulController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\TaskController;
@@ -19,11 +21,26 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
+
+    Route::get('/krs/options', [KrsController::class, 'options']);
+    Route::get('/krs', [KrsController::class, 'show']);
+    Route::put('/krs', [KrsController::class, 'save']);
+
+    Route::prefix('admin')->group(function () {
+        Route::get('/academic-data', [AdminAcademicController::class, 'data']);
+        Route::post('/matkul', [AdminAcademicController::class, 'storeCourse']);
+        Route::post('/academic-classes', [AdminAcademicController::class, 'store']);
+        Route::patch('/academic-classes/{classId}/offering', [AdminAcademicController::class, 'updateClassOffering']);
+        Route::get('/krs/periods', [AdminKrsController::class, 'periods']);
+        Route::post('/krs/periods', [AdminKrsController::class, 'storePeriod']);
+        Route::patch('/krs/periods/{periodId}', [AdminKrsController::class, 'updatePeriod']);
+        Route::get('/krs/packages', [AdminKrsController::class, 'packages']);
+        Route::post('/krs/packages', [AdminKrsController::class, 'storePackage']);
+        Route::put('/krs/packages/{packageId}', [AdminKrsController::class, 'updatePackage']);
+    });
 });
 
 Route::get('/tasks/{mahasiswaId}', [TaskController::class, 'index']);
 Route::get('/academic-classes/{id}', [AcademicClassController::class, 'show']);
 Route::get('/matkul', [MatkulController::class, 'index']);
 Route::get('/academic-classes/lecturers/{matkulId}', [AcademicClassController::class, 'lecturersByCourse']);
-Route::get('/admin/academic-data', [AdminAcademicController::class, 'data']);
-Route::post('/admin/academic-classes', [AdminAcademicController::class, 'store']);

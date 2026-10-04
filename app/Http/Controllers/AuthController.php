@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
@@ -12,36 +13,49 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'email'    => ['required', 'string', 'email'],
+            'email' => ['required', 'string', 'email'],
             'password' => ['required', 'string'],
         ], [
-            'email.required'    => 'Email wajib diisi.',
-            'email.email'       => 'Format email tidak valid.',
+            'email.required' => 'Email wajib diisi.',
+            'email.email' => 'Format email tidak valid.',
             'password.required' => 'Password wajib diisi.',
         ]);
 
         $user = User::where('email', $request->email)->first();
 
         // Cek user & kecocokan password
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        if (! $user || ! Hash::check($request->password, $user->password)) {
             return response()->json([
-                'message' => 'Email atau password salah!'
+                'message' => 'Email atau password salah!',
             ], 401);
         }
 
         // Buat Sanctum Auth Token
         $token = $user->createToken('auth_token')->plainTextToken;
+        $student = $user->role === 'mahasiswa'
+            ? DB::table('mahasiswa')
+                ->where('user_id', $user->id)
+                ->first(['id', 'nim', 'nama', 'jurusan_id', 'angkatan'])
+            : null;
 
         return response()->json([
-            'message'      => 'Login berhasil',
+            'message' => 'Login berhasil',
             'access_token' => $token,
-            'token_type'   => 'Bearer',
-            'user'         => [
-                'id'    => $user->id,
-                'name'  => $user->name,
+            'token_type' => 'Bearer',
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
                 'email' => $user->email,
-                'role'  => $user->role,
-            ]
+                'role' => $user->role,
+                'mahasiswa_id' => $student?->id,
+                'mahasiswa' => $student ? [
+                    'id' => $student->id,
+                    'nim' => $student->nim,
+                    'nama' => $student->nama,
+                    'jurusan_id' => $student->jurusan_id,
+                    'angkatan' => $student->angkatan,
+                ] : null,
+            ],
         ], 200);
     }
 
@@ -52,7 +66,7 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()->delete();
 
         return response()->json([
-            'message' => 'Berhasil logout'
+            'message' => 'Berhasil logout',
         ], 200);
     }
 }

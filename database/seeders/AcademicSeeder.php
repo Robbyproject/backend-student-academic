@@ -98,6 +98,7 @@ class AcademicSeeder extends Seeder
                 'dosen_id' => $dosen->id,
                 'nama_kelas' => 'SDLC4 - Computer Lab',
                 'tahun_ajaran' => '2026/2027',
+                'term' => 'ganjil',
                 'created_at' => now(),
             ]);
 

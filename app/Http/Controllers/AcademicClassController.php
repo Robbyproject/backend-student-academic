@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class AcademicClassController extends Controller
 {
@@ -18,6 +19,7 @@ class AcademicClassController extends Controller
                 'k.id',
                 'k.nama_kelas',
                 'k.tahun_ajaran',
+                'k.term',
                 'mk.kode_matkul',
                 'mk.nama_matkul',
                 'mk.sks',
@@ -54,6 +56,7 @@ class AcademicClassController extends Controller
                     'id' => $first->id,
                     'nama_kelas' => $first->nama_kelas,
                     'tahun_ajaran' => $first->tahun_ajaran,
+                    'term' => $first->term,
                     'kode_matkul' => $first->kode_matkul,
                     'nama_matkul' => $first->nama_matkul,
                     'sks' => $first->sks,
@@ -77,6 +80,7 @@ class AcademicClassController extends Controller
                 'k.id',
                 'k.nama_kelas',
                 'k.tahun_ajaran',
+                'k.term',
                 'mk.kode_matkul',
                 'mk.nama_matkul',
                 'mk.sks',
@@ -98,6 +102,7 @@ class AcademicClassController extends Controller
             'id' => $class->id,
             'nama_kelas' => $class->nama_kelas,
             'tahun_ajaran' => $class->tahun_ajaran,
+            'term' => $class->term,
             'kode_matkul' => $class->kode_matkul,
             'nama_matkul' => $class->nama_matkul,
             'sks' => $class->sks,
@@ -139,8 +144,16 @@ class AcademicClassController extends Controller
             'matkul_id' => ['required', 'integer', 'min:1'],
             'dosen_id' => ['required', 'integer', 'min:1'],
             'nama_kelas' => ['required', 'string', 'max:255'],
-            'tahun_ajaran' => ['required', 'string', 'max:20'],
+            'tahun_ajaran' => ['required', 'regex:/^\d{4}\/\d{4}$/'],
+            'term' => ['required', 'in:ganjil,genap'],
         ]);
+
+        [$yearStart, $yearEnd] = explode('/', $validated['tahun_ajaran']);
+        if ((int) $yearEnd !== (int) $yearStart + 1) {
+            throw ValidationException::withMessages([
+                'tahun_ajaran' => 'Tahun ajaran harus berupa dua tahun berurutan, misalnya 2026/2027.',
+            ]);
+        }
 
         // Cari mata kuliah
         $matkul = DB::table('matkul')
@@ -176,6 +189,7 @@ class AcademicClassController extends Controller
             'dosen_id' => $validated['dosen_id'],
             'nama_kelas' => $validated['nama_kelas'],
             'tahun_ajaran' => $validated['tahun_ajaran'],
+            'term' => $validated['term'],
         ]);
 
         return response()->json([
@@ -184,6 +198,7 @@ class AcademicClassController extends Controller
                 'id' => $id,
                 'nama_kelas' => $validated['nama_kelas'],
                 'tahun_ajaran' => $validated['tahun_ajaran'],
+                'term' => $validated['term'],
                 'matkul_id' => $validated['matkul_id'],
                 'dosen_id' => $validated['dosen_id'],
             ],

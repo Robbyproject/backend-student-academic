@@ -4,11 +4,14 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class AdminAcademicController extends Controller
 {
-    public function data()
+    public function data(Request $request)
     {
+        $this->authorizeAdmin($request);
+
         return response()->json([
             'jurusan' => DB::table('jurusan')
                 ->select(
@@ -42,19 +45,60 @@ class AdminAcademicController extends Controller
         ]);
     }
 
+    public function storeCourse(Request $request)
+    {
+        $this->authorizeAdmin($request);
+
+        $validated = $request->validate([
+            'kode_matkul' => ['required', 'string', 'max:50', 'unique:matkul,kode_matkul'],
+            'nama_matkul' => ['required', 'string', 'max:255'],
+            'sks' => ['required', 'integer', 'between:1,6'],
+            'jurusan_id' => ['required', 'integer', 'exists:jurusan,id'],
+        ]);
+
+        $courseId = DB::table('matkul')->insertGetId([
+            'kode_matkul' => $validated['kode_matkul'],
+            'nama_matkul' => $validated['nama_matkul'],
+            'sks' => $validated['sks'],
+            'jurusan_id' => $validated['jurusan_id'],
+            'created_at' => now(),
+        ]);
+
+        return response()->json([
+            'message' => 'Mata kuliah berhasil dibuat.',
+            'data' => [
+                'id' => $courseId,
+                'kode_matkul' => $validated['kode_matkul'],
+                'nama_matkul' => $validated['nama_matkul'],
+                'sks' => $validated['sks'],
+                'jurusan_id' => $validated['jurusan_id'],
+            ],
+        ], 201);
+    }
+
     public function store(Request $request)
     {
+        $this->authorizeAdmin($request);
+
         $validated = $request->validate([
             'dosen_id' => 'required|integer|min:1',
             'matkul_id' => 'required|integer|min:1',
             'nama_kelas' => 'required|string|max:255',
-            'tahun_ajaran' => 'required|string|max:20',
+            'tahun_ajaran' => ['required', 'regex:/^\d{4}\/\d{4}$/'],
+            'term' => 'required|in:ganjil,genap',
 
             'hari' => 'required|string|max:20',
             'jam_mulai' => 'required',
             'jam_selesai' => 'required',
             'ruangan' => 'required|string|max:50',
         ]);
+
+        [$yearStart, $yearEnd] = explode('/', $validated['tahun_ajaran']);
+        if ((int) $yearEnd !== (int) $yearStart + 1) {
+            throw ValidationException::withMessages([
+                'tahun_ajaran' => 'Tahun ajaran harus berupa dua tahun berurutan, misalnya 2026/2027.',
+            ]);
+        }
 
         $dosen = DB::table('dosen')
             ->where('id', $validated['dosen_id'])
@@ -90,6 +134,7 @@ class AdminAcademicController extends Controller
                 'dosen_id' => $validated['dosen_id'],
                 'nama_kelas' => $validated['nama_kelas'],
                 'tahun_ajaran' => $validated['tahun_ajaran'],
+                'term' => $validated['term'],
             ]);
 
             DB::table('jadwal')->insert([
@@ -108,5 +153,37 @@ class AdminAcademicController extends Controller
             'message' => 'Kelas dan jadwal berhasil dibuat.',
             'kelas_id' => $kelasId,
         ], 201);
+    }
+
+    public function updateClassOffering(Request $request, int $classId)
+    {
+        $this->authorizeAdmin($request);
+
+        $validated = $request->validate([
+            'tahun_ajaran' => ['required', 'regex:/^\d{4}\/\d{4}$/'],
+            'term' => ['required', 'in:ganjil,genap'],
+        ]);
+
+        [$yearStart, $yearEnd] = explode('/', $validated['tahun_ajaran']);
+        if ((int) $yearEnd !== (int) $yearStart + 1) {
+            throw ValidationException::withMessages([
+                'tahun_ajaran' => 'Tahun ajaran harus berupa dua tahun berurutan, misalnya 2026/2027.',
+            ]);
+        }
+
+        $class = DB::table('kelas')->where('id', $classId)->first();
+        abort_if(! $class, 404, 'Kelas tidak ditemukan.');
+
+        DB::table('kelas')->where('id', $classId)->update([
+            'tahun_ajaran' => $validated['tahun_ajaran'],
+            'term' => $validated['term'],
+        ]);
+
+        return response()->json(['message' => 'Periode kelas berhasil diperbarui.']);
+    }
+
+    private function authorizeAdmin(Request $request): void
+    {
+        abort_unless($request->user()?->role === 'admin', 403, 'Hanya admin yang dapat mengatur data akademik.');
     }
 }

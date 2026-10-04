@@ -21,6 +21,66 @@ Laravel is a web application framework with expressive, elegant syntax. We belie
 
 Laravel is accessible, powerful, and provides tools required for large, robust applications.
 
+## KRS API
+
+All KRS routes use Sanctum bearer tokens. Admin endpoints require a logged-in user with the `admin` role; student endpoints use the authenticated student's linked `mahasiswa` record.
+
+### Development student test account
+
+Run `StudentSeeder` to create the `robby@gmail.com` student account and its student profile. The seeder selects the existing Informatika (`IF`) department when available (otherwise the first department), and assigns test NIM `TEST-ROBBY-2026` and cohort 2026. It requires the password to be supplied through the process environment variable `ROBBY_STUDENT_PASSWORD`; it never stores the plaintext password in source. For PowerShell:
+
+```powershell
+$env:ROBBY_STUDENT_PASSWORD = '<test password>'
+php artisan db:seed --class=StudentSeeder
+Remove-Item Env:\ROBBY_STUDENT_PASSWORD
+```
+
+The seeder is safe to rerun and does not reset the password of an account that already exists.
+
+Admin setup order:
+
+1. Create an academic period with `POST /api/admin/krs/periods`, for example:
+   ```json
+   {
+     "academic_year_start": 2026,
+     "term": "ganjil",
+     "is_active": true,
+     "registration_open": false
+   }
+   ```
+   The academic year is generated as `2026/2027`. Only one period can be active. Open or close registration with `PATCH /api/admin/krs/periods/{id}` and `{"registration_open": true}`.
+2. Add courses using `POST /api/admin/matkul`:
+   ```json
+   {
+     "kode_matkul": "IF201",
+     "nama_matkul": "Struktur Data",
+     "sks": 3,
+     "jurusan_id": 1
+   }
+   ```
+   Course codes must be unique, SKS must be from 1 to 6, and the department must exist. Newly created courses appear in `GET /api/admin/academic-data` and can be added to a curriculum package.
+3. Create a department's semester package with `POST /api/admin/krs/packages`:
+   ```json
+   {
+     "jurusan_id": 1,
+     "semester": 3,
+     "name": "Paket Semester 3",
+     "matkul_ids": [4, 5]
+   }
+   ```
+   Every course in a package must belong to the selected department. Use `GET /api/admin/krs/packages` to list packages and `PUT /api/admin/krs/packages/{id}` to replace one.
+4. Create class sections for the active academic year and term. `POST /api/admin/academic-classes` requires `tahun_ajaran` in `YYYY/YYYY` format and `term` equal to `ganjil` or `genap`. Set or correct existing class offerings with `PATCH /api/admin/academic-classes/{id}/offering` and the same fields; legacy classes have no term until assigned.
+
+Students can call `GET /api/krs/options` to receive their required package and available class sections, `GET /api/krs` to view their current KRS, and `PUT /api/krs` to submit or replace it:
+
+```json
+{
+  "kelas_ids": [12, 18]
+}
+```
+
+The submitted list must contain exactly one available class for every course in the package. The server derives semester as `2 * (academic_year_start - angkatan) + 1` for `ganjil`, or `+ 2` for `genap`. It checks package membership and schedule overlaps, then approves a valid KRS immediately. Replacement is allowed only while registration is open. Selected sections are also recorded in `peserta_kelas`.
+
 ## Learning Laravel
 
 Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
