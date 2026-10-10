@@ -27,15 +27,13 @@ All KRS routes use Sanctum bearer tokens. Admin endpoints require a logged-in us
 
 ### Development student test account
 
-Run `StudentSeeder` to create the `robby@gmail.com` student account and its student profile. The seeder selects the existing Informatika (`IF`) department when available (otherwise the first department), and assigns test NIM `TEST-ROBBY-2026` and cohort 2026. It requires the password to be supplied through the process environment variable `ROBBY_STUDENT_PASSWORD`; it never stores the plaintext password in source. For PowerShell:
+Run `StudentSeeder` to create the `robby@gmail.com` student account and its student profile. The seeder selects the existing Informatika (`IF`) department when available, otherwise the first department; if there is no department yet, it creates Informatika (`IF`). It assigns test NIM `TEST-ROBBY-2026` and cohort 2026. The development password for a newly created account is `password123`. Run it directly:
 
 ```powershell
-$env:ROBBY_STUDENT_PASSWORD = '<test password>'
 php artisan db:seed --class=StudentSeeder
-Remove-Item Env:\ROBBY_STUDENT_PASSWORD
 ```
 
-The seeder is safe to rerun and does not reset the password of an account that already exists.
+The default `php artisan db:seed` also runs `StudentSeeder`. It is safe to rerun and does not reset the password of an account that already exists.
 
 Admin setup order:
 

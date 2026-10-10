@@ -13,6 +13,8 @@ class StudentSeeder extends Seeder
 
     private const NIM = 'TEST-ROBBY-2026';
 
+    private const PASSWORD = 'password123';
+
     public function run(): void
     {
         DB::transaction(function (): void {
@@ -25,17 +27,9 @@ class StudentSeeder extends Seeder
             }
 
             if (! $user) {
-                $password = getenv('ROBBY_STUDENT_PASSWORD');
-
-                if ($password === false || $password === '') {
-                    throw new RuntimeException(
-                        'Set ROBBY_STUDENT_PASSWORD in the process environment before running this seeder.'
-                    );
-                }
-
                 $userId = DB::table('users')->insertGetId([
                     'email' => self::EMAIL,
-                    'password' => Hash::make($password),
+                    'password' => Hash::make(self::PASSWORD),
                     'role' => 'mahasiswa',
                     'created_at' => now(),
                     'updated_at' => now(),
@@ -56,9 +50,13 @@ class StudentSeeder extends Seeder
                 ->first();
 
             if (! $department) {
-                throw new RuntimeException(
-                    'No department exists. Seed at least one jurusan before running this seeder.'
-                );
+                $departmentId = DB::table('jurusan')->insertGetId([
+                    'kode_jurusan' => 'IF',
+                    'nama_jurusan' => 'Informatika',
+                    'created_at' => now(),
+                ]);
+
+                $department = DB::table('jurusan')->where('id', $departmentId)->first();
             }
 
             if (DB::table('mahasiswa')->where('nim', self::NIM)->exists()) {
