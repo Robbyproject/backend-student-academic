@@ -1,6 +1,6 @@
 <?php
 
-// Auth Routes (Hanya bisa diakses kalau SUDAH login)
+// Auth Routes (Hanya bisa diakses kalau udah login)
 use App\Http\Controllers\AuthController;
 use Illuminate\Support\Facades\Route;
 
