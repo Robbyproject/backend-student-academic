@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
@@ -67,6 +68,32 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Berhasil logout',
+        ], 200);
+    }
+
+    public function changePassword(Request $request)
+    {
+        // 1. Validasi input dari frontend
+        $request->validate([
+            'current_password' => 'required',
+            'new_password'     => 'required|min:6|confirmed', // butuh input confirmation
+        ]);
+
+        $user = $request->user(); // Mendapatkan data user yang sedang login via token
+
+        // 2. Cek apakah password lama yang dimasukkan sudah benar
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response()->json([
+                'message' => 'Kata sandi lama yang Anda masukkan salah!'
+            ], 422);
+        }
+
+        // 3. Update dengan password baru yang di-hash
+        $user->password = Hash::make($request->new_password);
+        $user->save();
+
+        return response()->json([
+            'message' => 'Kata sandi berhasil diperbarui!'
         ], 200);
     }
 }

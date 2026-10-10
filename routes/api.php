@@ -15,8 +15,8 @@ Route::post('/login', [AuthController::class, 'login']);
 
 Route::get('/schedules', [ScheduleController::class, 'index']);
 Route::get('/academic-classes', [AcademicClassController::class, 'index']);
-
 Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/change-password', [AuthController::class, 'changePassword']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', function (Request $request) {
         return $request->user();
