@@ -14,6 +14,11 @@ use Illuminate\Support\Facades\Route;
 Route::post('/login', [AuthController::class, 'login']);
 
 Route::get('/schedules', [ScheduleController::class, 'index']);
+Route::post('/schedules', [ScheduleController::class, 'store']);
+Route::put('/schedules/{id}', [ScheduleController::class, 'update']);
+Route::delete('/schedules/{id}', [ScheduleController::class, 'destroy']);
+
+
 Route::get('/academic-classes', [AcademicClassController::class, 'index']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/change-password', [AuthController::class, 'changePassword']);
