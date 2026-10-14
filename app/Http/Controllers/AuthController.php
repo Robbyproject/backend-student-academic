@@ -1,0 +1,99 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Auth;
+
+class AuthController extends Controller
+{
+    // 1. Proses Login API (Mengembalikan Sanctum Token)
+    public function login(Request $request)
+    {
+        $request->validate([
+            'email' => ['required', 'string', 'email'],
+            'password' => ['required', 'string'],
+        ], [
+            'email.required' => 'Email wajib diisi.',
+            'email.email' => 'Format email tidak valid.',
+            'password.required' => 'Password wajib diisi.',
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        // Cek user & kecocokan password
+        if (! $user || ! Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'message' => 'Email atau password salah!',
+            ], 401);
+        }
+
+        // Buat Sanctum Auth Token
+        $token = $user->createToken('auth_token')->plainTextToken;
+        $student = $user->role === 'mahasiswa'
+            ? DB::table('mahasiswa')
+                ->where('user_id', $user->id)
+                ->first(['id', 'nim', 'nama', 'jurusan_id', 'angkatan'])
+            : null;
+
+        return response()->json([
+            'message' => 'Login berhasil',
+            'access_token' => $token,
+            'token_type' => 'Bearer',
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
+                'mahasiswa_id' => $student?->id,
+                'mahasiswa' => $student ? [
+                    'id' => $student->id,
+                    'nim' => $student->nim,
+                    'nama' => $student->nama,
+                    'jurusan_id' => $student->jurusan_id,
+                    'angkatan' => $student->angkatan,
+                ] : null,
+            ],
+        ], 200);
+    }
+
+    // 2. Proses Logout API (Menghapus Token Aktif)
+    public function logout(Request $request)
+    {
+        // Menghapus token yang sedang digunakan untuk request ini
+        $request->user()->currentAccessToken()->delete();
+
+        return response()->json([
+            'message' => 'Berhasil logout',
+        ], 200);
+    }
+
+    public function changePassword(Request $request)
+    {
+        // 1. Validasi input dari frontend
+        $request->validate([
+            'current_password' => 'required',
+            'new_password'     => 'required|min:6|confirmed', // butuh input confirmation
+        ]);
+
+        $user = $request->user(); // Mendapatkan data user yang sedang login via token
+
+        // 2. Cek apakah password lama yang dimasukkan sudah benar
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response()->json([
+                'message' => 'Kata sandi lama yang Anda masukkan salah!'
+            ], 422);
+        }
+
+        // 3. Update dengan password baru yang di-hash
+        $user->password = Hash::make($request->new_password);
+        $user->save();
+
+        return response()->json([
+            'message' => 'Kata sandi berhasil diperbarui!'
+        ], 200);
+    }
+}
