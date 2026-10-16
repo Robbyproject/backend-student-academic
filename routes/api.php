@@ -18,14 +18,21 @@ Route::post('/schedules', [ScheduleController::class, 'store']);
 Route::put('/schedules/{id}', [ScheduleController::class, 'update']);
 Route::delete('/schedules/{id}', [ScheduleController::class, 'destroy']);
 
-
 Route::get('/academic-classes', [AcademicClassController::class, 'index']);
+
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/change-password', [AuthController::class, 'changePassword']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
+
+    Route::get('/tasks', [TaskController::class, 'index']); 
+    Route::post('/tasks', [TaskController::class, 'store']);
+    Route::put('/tasks/{id}', [TaskController::class, 'update']);
+    Route::delete('/tasks/{id}', [TaskController::class, 'destroy']);
+
+    Route::get('/tasks/{mahasiswaId}', [TaskController::class, 'index']);
 
     Route::get('/krs/options', [KrsController::class, 'options']);
     Route::get('/krs', [KrsController::class, 'show']);
@@ -45,7 +52,6 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 });
 
-Route::get('/tasks/{mahasiswaId}', [TaskController::class, 'index']);
 Route::get('/academic-classes/{id}', [AcademicClassController::class, 'show']);
 Route::get('/matkul', [MatkulController::class, 'index']);
 Route::get('/academic-classes/lecturers/{matkulId}', [AcademicClassController::class, 'lecturersByCourse']);
