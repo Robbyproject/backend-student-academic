@@ -92,7 +92,7 @@ class TaskController extends Controller
     }
 
     // Memperbarui tugas yang sudah ada
-    public function update(Request $request, $id)
+    public function update(Request $request, int $id)
     {
         $task = DB::table('tugas')->where('id', $id)->first();
 
@@ -130,7 +130,7 @@ class TaskController extends Controller
     }
 
     // Menghapus tugas
-    public function destroy($id)
+    public function destroy(int $id)
     {
         $task = DB::table('tugas')->where('id', $id)->first();
 

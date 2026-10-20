@@ -41,4 +41,50 @@ class SubmissionController extends Controller
 
         return response()->json($submissions->get());
     }
+
+    public function store(Request $request)
+    {
+    $request->validate([
+        'tugas_id' => 'required|exists:tugas,id',
+        'mahasiswa_id' => 'required|exists:mahasiswa,id',
+        'file' => 'required|file|max:10240', // Maksimal 10MB
+    ]);
+
+    $task = DB::table('tugas')->where('id', $request->tugas_id)->first();
+
+    // Validasi Deadline (Cek apakah hari ini melebihi tanggal deadline)
+    if (now()->toDateString() > $task->deadline) {
+        return response()->json([
+            'message' => 'Deadline pengumpulan tugas sudah terlewat.'
+        ], 400);
+    }
+
+    // Cek apakah sudah pernah mengumpulkan
+    $existing = DB::table('hasil_tugas')
+        ->where('tugas_id', $request->tugas_id)
+        ->where('mahasiswa_id', $request->mahasiswa_id)
+        ->first();
+
+    if ($existing) {
+        return response()->json([
+            'message' => 'Anda sudah mengumpulkan tugas ini.'
+        ], 400);
+    }
+
+    $filePath = null;
+    if ($request->hasFile('file')) {
+        $filePath = $request->file('file')->store('submissions', 'public');
+    }
+
+    DB::table('hasil_tugas')->insert([
+        'tugas_id' => $request->tugas_id,
+        'mahasiswa_id' => $request->mahasiswa_id,
+        'file_submission_path' => $filePath,
+        'submitted_at' => now(), // Menyimpan waktu standar server/UTC
+    ]);
+
+    return response()->json([
+        'message' => 'Tugas berhasil dikumpulkan!',
+    ], 201);
+}
 }
