@@ -10,6 +10,7 @@ use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\TaskController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AdminJurusanController;
 
 Route::post('/login', [AuthController::class, 'login']);
 
@@ -49,3 +50,24 @@ Route::get('/tasks/{mahasiswaId}', [TaskController::class, 'index']);
 Route::get('/academic-classes/{id}', [AcademicClassController::class, 'show']);
 Route::get('/matkul', [MatkulController::class, 'index']);
 Route::get('/academic-classes/lecturers/{matkulId}', [AcademicClassController::class, 'lecturersByCourse']);
+
+
+Route::get('/departments', [
+    AdminJurusanController::class,
+    'index',
+]);
+
+Route::post('/admin/jurusan', [
+    AdminJurusanController::class,
+    'store',
+]);
+
+Route::put('/admin/jurusan/{id}', [
+    AdminJurusanController::class,
+    'update',
+]);
+
+Route::delete('/admin/jurusan/{id}', [
+    AdminJurusanController::class,
+    'destroy',
+]);
