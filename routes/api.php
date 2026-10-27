@@ -11,6 +11,7 @@ use App\Http\Controllers\TaskController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SubmissionController;
+use App\Http\Controllers\ClassParticipantController;
 
 Route::post('/login', [AuthController::class, 'login']);
 
@@ -19,16 +20,37 @@ Route::post('/schedules', [ScheduleController::class, 'store']);
 Route::put('/schedules/{id}', [ScheduleController::class, 'update']);
 Route::delete('/schedules/{id}', [ScheduleController::class, 'destroy']);
 
-Route::get('/academic-classes', [AcademicClassController::class, 'index']);
-
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/change-password', [AuthController::class, 'changePassword']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
+    
+    // Pindahkan rute ini ke dalam Sanctum agar Admin bisa mengaksesnya dengan token
+    Route::get('/academic-classes', [AcademicClassController::class, 'index']);
+    Route::get('/dosen/departments', [TaskController::class, 'getDepartmentsByLecturer']);
+    Route::get('/dosen/classes-by-jurusan/{jurusanId}', [TaskController::class, 'getClassesByJurusanAndLecturer']);
+
     Route::post('/submissions', [SubmissionController::class, 'store']);
     Route::get('/submissions', [App\Http\Controllers\SubmissionController::class, 'index']);
+
+    // Rute untuk Peserta Kelas & Mahasiswa
+    Route::get('/classes/participants', [ClassParticipantController::class, 'index']);
+    Route::post('/classes/participants', [ClassParticipantController::class, 'store']);
+    Route::delete('/classes/participants/{id}', [ClassParticipantController::class, 'destroy']);
+    
+    Route::get('/tasks', [TaskController::class, 'index']);
+
+    Route::get('/departments', function () {
+    $jurusan = \Illuminate\Support\Facades\DB::table('jurusan')->get();
+    return response()->json($jurusan);
+    });
+    
+    // Endpoint untuk mengambil daftar mahasiswa
+    Route::get('/students', [App\Http\Controllers\StudentController::class, 'index']);
+
+    Route::get('/academic-classes/by-jurusan/{jurusanId}', [AcademicClassController::class, 'getClassesByJurusan']);
 
     Route::get('/dosen/tasks', [TaskController::class, 'index']); 
     Route::get('/dosen/tasks/{taskId}/submissions', [SubmissionController::class, 'getByTask']); 

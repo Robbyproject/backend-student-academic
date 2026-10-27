@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Storage;
 
 class TaskController extends Controller
 {
-    // Menampilkan daftar tugas untuk Mahasiswa (berdasarkan jurusan)
+    // Menampilkan daftar tugas untuk Mahasiswa (berdasarkan kelas yang diikuti di peserta_kelas)
     public function indexForMahasiswa(int $mahasiswaId)
     {
         $mahasiswa = DB::table('mahasiswa')
@@ -25,7 +25,8 @@ class TaskController extends Controller
             ->join('kelas as k', 't.kelas_id', '=', 'k.id')
             ->join('matkul as mk', 'k.matkul_id', '=', 'mk.id')
             ->join('dosen as d', 'k.dosen_id', '=', 'd.id')
-            ->where('mk.jurusan_id', $mahasiswa->jurusan_id)
+            ->join('peserta_kelas as pk', 'k.id', '=', 'pk.kelas_id')
+            ->where('pk.mahasiswa_id', $mahasiswaId)
             ->whereDate('t.deadline', '>=', now()->toDateString())
             ->whereNotExists(function ($query) use ($mahasiswaId) {
                 $query->select(DB::raw(1))
@@ -48,9 +49,50 @@ class TaskController extends Controller
         return response()->json($tasks);
     }
 
-    // Menampilkan seluruh daftar tugas untuk Dosen (Riwayat Tugas)
-    public function index()
+    // Menampilkan daftar tugas (otomatis mendeteksi role: Admin/Dosen melihat semua, Mahasiswa melihat sesuai kelas peserta)
+    public function index(Request $request)
     {
+        $user = $request->user();
+
+        // Jika yang akses adalah mahasiswa (berdasarkan token Sanctum)
+        if ($user && $user->role === 'mahasiswa') {
+            $mahasiswa = DB::table('mahasiswa')
+                ->where('user_id', $user->id)
+                ->first();
+
+            if (!$mahasiswa) {
+                return response()->json([], 200);
+            }
+
+            $tasks = DB::table('tugas as t')
+                ->join('kelas as k', 't.kelas_id', '=', 'k.id')
+                ->join('matkul as mk', 'k.matkul_id', '=', 'mk.id')
+                ->join('dosen as d', 'k.dosen_id', '=', 'd.id')
+                ->join('peserta_kelas as pk', 'k.id', '=', 'pk.kelas_id')
+                ->where('pk.mahasiswa_id', $mahasiswa->id)
+                ->whereDate('t.deadline', '>=', now()->toDateString())
+                ->whereNotExists(function ($query) use ($mahasiswa) {
+                    $query->select(DB::raw(1))
+                        ->from('hasil_tugas as ht')
+                        ->whereColumn('ht.tugas_id', 't.id')
+                        ->where('ht.mahasiswa_id', $mahasiswa->id);
+                })
+                ->select(
+                    't.id',
+                    't.judul',
+                    't.deskripsi',
+                    't.deadline',
+                    'mk.kode_matkul',
+                    'mk.nama_matkul',
+                    'd.nama as nama_dosen'
+                )
+                ->orderBy('t.deadline', 'asc')
+                ->get();
+
+            return response()->json($tasks);
+        }
+
+        // Untuk Admin / Dosen / Default (menampilkan semua riwayat tugas)
         $tasks = DB::table('tugas')
             ->orderBy('created_at', 'desc')
             ->get();
@@ -63,12 +105,13 @@ class TaskController extends Controller
     {
         $request->validate([
             'judul' => 'required|string|max:255',
+            'kelas_id' => 'required|integer|exists:kelas,id',
             'deskripsi' => 'nullable|string',
             'deadline' => 'nullable|date',
             'file' => 'nullable|file|max:10240', // Maksimal 10MB
         ]);
 
-        $kelasId = $request->kelas_id ?? DB::table('kelas')->value('id') ?? 1;
+        $kelasId = $request->kelas_id;
 
         $filePath = null;
         if ($request->hasFile('file')) {
@@ -147,5 +190,60 @@ class TaskController extends Controller
         return response()->json([
             'message' => 'Tugas berhasil dihapus'
         ]);
+    }
+
+    // Mengambil daftar jurusan yang hanya diajar oleh dosen yang sedang login
+    public function getDepartmentsByLecturer(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user || $user->role !== 'dosen') {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        // Cari ID dosen berdasarkan user_id
+        $dosen = DB::table('dosen')->where('user_id', $user->id)->first();
+
+        if (!$dosen) {
+            return response()->json(['message' => 'Profil dosen tidak ditemukan.'], 404);
+        }
+
+        // Ambil jurusan unik dari mata kuliah pada kelas yang diampu oleh dosen ini
+        $departments = DB::table('kelas as k')
+            ->join('matkul as mk', 'k.matkul_id', '=', 'mk.id')
+            ->join('jurusan as j', 'mk.jurusan_id', '=', 'j.id')
+            ->where('k.dosen_id', $dosen->id)
+            ->select('j.id', 'j.kode_jurusan', 'j.nama_jurusan')
+            ->distinct()
+            ->orderBy('j.nama_jurusan')
+            ->get();
+
+        return response()->json($departments);
+    }
+
+    // Mengambil daftar kelas berdasarkan jurusan khusus untuk dosen yang sedang login
+    public function getClassesByJurusanAndLecturer(Request $request, int $jurusanId)
+    {
+        $user = $request->user();
+
+        if (!$user || $user->role !== 'dosen') {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $dosen = DB::table('dosen')->where('user_id', $user->id)->first();
+
+        if (!$dosen) {
+            return response()->json([], 404);
+        }
+
+        $classes = DB::table('kelas as k')
+            ->join('matkul as mk', 'k.matkul_id', '=', 'mk.id')
+            ->where('mk.jurusan_id', $jurusanId)
+            ->where('k.dosen_id', $dosen->id)
+            ->select('k.id', 'k.nama_kelas', 'mk.nama_matkul')
+            ->orderBy('k.nama_kelas')
+            ->get();
+
+        return response()->json($classes);
     }
 }

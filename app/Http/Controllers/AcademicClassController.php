@@ -8,200 +8,151 @@ use Illuminate\Validation\ValidationException;
 
 class AcademicClassController extends Controller
 {
-    // mengambil semua kelas
-    public function index()
+    public function index(Request $request)
     {
-        $classes = DB::table('kelas as k')
+        $user = $request->user();
+
+        if (
+            !$user ||
+            !in_array($user->role, ['admin', 'mahasiswa', 'dosen'], true)
+        ) {
+            abort(403, 'Role tidak memiliki akses ke kelas akademik.');
+        }
+
+        $perPage = min(
+            max((int) $request->query('per_page', 10), 1),
+            100
+        );
+
+        $query = DB::table('kelas as k')
             ->join('matkul as mk', 'k.matkul_id', '=', 'mk.id')
             ->join('dosen as d', 'k.dosen_id', '=', 'd.id')
-            ->leftJoin('jadwal as j', 'k.id', '=', 'j.kelas_id')
             ->select(
                 'k.id',
+                'k.matkul_id',
+                'k.dosen_id',
                 'k.nama_kelas',
                 'k.tahun_ajaran',
                 'k.term',
-                'mk.kode_matkul',
-                'mk.nama_matkul',
-                'mk.sks',
-                'd.nama as nama_dosen',
-                'j.hari',
-                'j.jam_mulai',
-                'j.jam_selesai',
-                'j.ruangan'
-            )
-            ->orderBy('mk.nama_matkul')
-            ->orderBy('j.hari')
-            ->orderBy('j.jam_mulai')
-            ->get();
-
-        $result = $classes
-            ->groupBy('id')
-            ->map(function ($items) {
-                $first = $items->first();
-
-                $schedules = $items
-                    ->filter(function ($item) {
-                        return $item->hari !== null;
-                    })
-                    ->map(function ($item) {
-                        return $item->hari.' '.
-                            substr($item->jam_mulai, 0, 5).' - '.
-                            substr($item->jam_selesai, 0, 5).
-                            ' ('.$item->ruangan.')';
-                    })
-                    ->values()
-                    ->toArray();
-
-                return [
-                    'id' => $first->id,
-                    'nama_kelas' => $first->nama_kelas,
-                    'tahun_ajaran' => $first->tahun_ajaran,
-                    'term' => $first->term,
-                    'kode_matkul' => $first->kode_matkul,
-                    'nama_matkul' => $first->nama_matkul,
-                    'sks' => $first->sks,
-                    'nama_dosen' => $first->nama_dosen,
-                    'schedules' => $schedules,
-                ];
-            })
-            ->values();
-
-        return response()->json($result);
-    }
-
-    // mengambil detail satu kelas
-    public function show(string $id)
-    {
-        $class = DB::table('kelas as k')
-            ->join('matkul as mk', 'k.matkul_id', '=', 'mk.id')
-            ->join('dosen as d', 'k.dosen_id', '=', 'd.id')
-            ->where('k.id', $id)
-            ->select(
-                'k.id',
-                'k.nama_kelas',
-                'k.tahun_ajaran',
-                'k.term',
+                'mk.jurusan_id',
                 'mk.kode_matkul',
                 'mk.nama_matkul',
                 'mk.sks',
                 'd.nama as nama_dosen'
-            )
-            ->first();
+            );
 
-        if (! $class) {
-            return response()->json([
-                'message' => 'Kelas tidak ditemukan',
-            ], 404);
+        if ($user->role === 'mahasiswa') {
+            $mahasiswa = DB::table('mahasiswa')
+                ->where('user_id', $user->id)
+                ->first(['id', 'jurusan_id']);
+
+            if (!$mahasiswa) {
+                return response()->json([
+                    'message' => 'Profil mahasiswa tidak ditemukan.',
+                ], 404);
+            }
+
+            $query->where('mk.jurusan_id', $mahasiswa->jurusan_id);
         }
 
-        $jumlahMahasiswa = DB::table('peserta_kelas')
-            ->where('kelas_id', $id)
-            ->count();
+        if ($user->role === 'dosen') {
+            $dosen = DB::table('dosen')
+                ->where('user_id', $user->id)
+                ->first(['id']);
 
-        return response()->json([
-            'id' => $class->id,
-            'nama_kelas' => $class->nama_kelas,
-            'tahun_ajaran' => $class->tahun_ajaran,
-            'term' => $class->term,
-            'kode_matkul' => $class->kode_matkul,
-            'nama_matkul' => $class->nama_matkul,
-            'sks' => $class->sks,
-            'nama_dosen' => $class->nama_dosen,
-            'jumlah_mahasiswa' => $jumlahMahasiswa,
-        ]);
+            if (!$dosen) {
+                return response()->json([
+                    'message' => 'Profil dosen tidak ditemukan.',
+                ], 404);
+            }
+
+            $query->where('k.dosen_id', $dosen->id);
+        }
+
+        $paginator = $query
+            ->orderBy('mk.nama_matkul')
+            ->orderBy('k.nama_kelas')
+            ->orderBy('k.id')
+            ->paginate($perPage)
+            ->withQueryString();
+
+        $classIds = $paginator->getCollection()
+            ->pluck('id')
+            ->all();
+
+        $schedulesByClass = collect();
+
+        if (!empty($classIds)) {
+            $schedulesByClass = DB::table('jadwal')
+                ->whereIn('kelas_id', $classIds)
+                ->orderByRaw("
+                    CASE LOWER(TRIM(hari))
+                        WHEN 'senin' THEN 1
+                        WHEN 'selasa' THEN 2
+                        WHEN 'rabu' THEN 3
+                        WHEN 'kamis' THEN 4
+                        WHEN 'jumat' THEN 5
+                        WHEN 'sabtu' THEN 6
+                        WHEN 'minggu' THEN 7
+                        ELSE 8
+                    END
+                ")
+                ->orderBy('jam_mulai')
+                ->get()
+                ->groupBy('kelas_id');
+        }
+
+        $paginator->getCollection()->transform(
+            function ($class) use ($schedulesByClass) {
+                $schedules = $schedulesByClass
+                    ->get($class->id, collect())
+                    ->map(function ($schedule) {
+                        return $schedule->hari . ' ' .
+                            substr($schedule->jam_mulai, 0, 5) . ' - ' .
+                            substr($schedule->jam_selesai, 0, 5) .
+                            ' (' . ($schedule->ruangan ?? '-') . ')';
+                    })
+                    ->values()
+                    ->all();
+
+                return [
+                    'id' => $class->id,
+                    'matkul_id' => $class->matkul_id,
+                    'dosen_id' => $class->dosen_id,
+                    'jurusan_id' => $class->jurusan_id,
+                    'nama_kelas' => $class->nama_kelas,
+                    'tahun_ajaran' => $class->tahun_ajaran,
+                    'term' => $class->term,
+                    'kode_matkul' => $class->kode_matkul,
+                    'nama_matkul' => $class->nama_matkul,
+                    'sks' => $class->sks,
+                    'nama_dosen' => $class->nama_dosen,
+                    'schedules' => $schedules,
+                ];
+            }
+        );
+
+        return response()->json($paginator);
     }
 
-    // AMBIL DOSEN SESUAI JURUSAN MATA KULIAH
-    public function lecturersByCourse(string $matkulId)
+    /**
+     * Mengambil daftar kelas berdasarkan jurusan untuk dropdown form tugas.
+     */
+    public function getClassesByJurusan(Request $request, int $jurusanId)
     {
-        $matkul = DB::table('matkul')
-            ->where('id', $matkulId)
-            ->first();
-
-        if (! $matkul) {
-            return response()->json([
-                'message' => 'Mata kuliah tidak ditemukan',
-            ], 404);
-        }
-
-        $dosen = DB::table('dosen')
-            ->where('jurusan_id', $matkul->jurusan_id)
+        $classes = DB::table('kelas as k')
+            ->join('matkul as mk', 'k.matkul_id', '=', 'mk.id')
+            ->join('dosen as d', 'k.dosen_id', '=', 'd.id')
+            ->where('mk.jurusan_id', $jurusanId)
             ->select(
-                'id',
-                'nama',
-                'nidn'
+                'k.id',
+                'k.nama_kelas',
+                'mk.nama_matkul',
+                'd.nama as nama_dosen'
             )
-            ->orderBy('nama')
+            ->orderBy('k.nama_kelas')
             ->get();
 
-        return response()->json($dosen);
-    }
-
-    // BUAT KELAS BARU
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'matkul_id' => ['required', 'integer', 'min:1'],
-            'dosen_id' => ['required', 'integer', 'min:1'],
-            'nama_kelas' => ['required', 'string', 'max:255'],
-            'tahun_ajaran' => ['required', 'regex:/^\d{4}\/\d{4}$/'],
-            'term' => ['required', 'in:ganjil,genap'],
-        ]);
-
-        [$yearStart, $yearEnd] = explode('/', $validated['tahun_ajaran']);
-        if ((int) $yearEnd !== (int) $yearStart + 1) {
-            throw ValidationException::withMessages([
-                'tahun_ajaran' => 'Tahun ajaran harus berupa dua tahun berurutan, misalnya 2026/2027.',
-            ]);
-        }
-
-        // Cari mata kuliah
-        $matkul = DB::table('matkul')
-            ->where('id', $validated['matkul_id'])
-            ->first();
-
-        if (! $matkul) {
-            return response()->json([
-                'message' => 'Mata kuliah tidak ditemukan',
-            ], 404);
-        }
-
-        // Cari dosen
-        $dosen = DB::table('dosen')
-            ->where('id', $validated['dosen_id'])
-            ->first();
-
-        if (! $dosen) {
-            return response()->json([
-                'message' => 'Dosen tidak ditemukan',
-            ], 404);
-        }
-
-        // Pastikan dosen dan mata kuliah berasal dari jurusan yang sama
-        if ((int) $dosen->jurusan_id !== (int) $matkul->jurusan_id) {
-            return response()->json([
-                'message' => 'Dosen tidak berasal dari jurusan mata kuliah tersebut',
-            ], 422);
-        }
-
-        $id = DB::table('kelas')->insertGetId([
-            'matkul_id' => $validated['matkul_id'],
-            'dosen_id' => $validated['dosen_id'],
-            'nama_kelas' => $validated['nama_kelas'],
-            'tahun_ajaran' => $validated['tahun_ajaran'],
-            'term' => $validated['term'],
-        ]);
-
-        return response()->json([
-            'message' => 'Kelas berhasil dibuat',
-            'data' => [
-                'id' => $id,
-                'nama_kelas' => $validated['nama_kelas'],
-                'tahun_ajaran' => $validated['tahun_ajaran'],
-                'term' => $validated['term'],
-                'matkul_id' => $validated['matkul_id'],
-                'dosen_id' => $validated['dosen_id'],
-            ],
-        ], 201);
+        return response()->json($classes);
     }
 }

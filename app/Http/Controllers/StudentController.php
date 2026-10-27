@@ -10,8 +10,8 @@ class StudentController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        $students = DB::table('tb_mahasiswa as m')
-            ->join('tb_jurusan as j', 'm.jurusan_id', '=', 'j.id')
+        $students = DB::table('mahasiswa as m')
+            ->join('jurusan as j', 'm.jurusan_id', '=', 'j.id')
             ->select(
                 'm.id',
                 'm.nim',
@@ -27,9 +27,9 @@ class StudentController extends Controller
         } elseif ($user->role === 'dosen') {
             $students->whereExists(function ($query) use ($user) {
                 $query->selectRaw('1')
-                    ->from('tb_peserta_kelas as p')
-                    ->join('tb_kelas as k', 'p.kelas_id', '=', 'k.id')
-                    ->join('tb_dosen as d', 'k.dosen_id', '=', 'd.id')
+                    ->from('peserta_kelas as p')
+                    ->join('kelas as k', 'p.kelas_id', '=', 'k.id')
+                    ->join('dosen as d', 'k.dosen_id', '=', 'd.id')
                     ->whereColumn('p.mahasiswa_id', 'm.id')
                     ->where('d.user_id', $user->id);
             });
