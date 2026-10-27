@@ -6,11 +6,13 @@ use App\Http\Controllers\AdminDirectoryController;
 use App\Http\Controllers\AdminJurusanController;
 use App\Http\Controllers\AdminKrsController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ClassParticipantController;
 use App\Http\Controllers\DosenAbsensiController;
 use App\Http\Controllers\KrsController;
 use App\Http\Controllers\MatkulController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\StudentProfileController;
+use App\Http\Controllers\SubmissionController;
 use App\Http\Controllers\TaskController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -35,6 +37,41 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
+    
+    // Pindahkan rute ini ke dalam Sanctum agar Admin bisa mengaksesnya dengan token
+    Route::get('/academic-classes', [AcademicClassController::class, 'index']);
+    Route::get('/dosen/departments', [TaskController::class, 'getDepartmentsByLecturer']);
+    Route::get('/dosen/classes-by-jurusan/{jurusanId}', [TaskController::class, 'getClassesByJurusanAndLecturer']);
+
+    Route::post('/submissions', [SubmissionController::class, 'store']);
+    Route::get('/submissions', [App\Http\Controllers\SubmissionController::class, 'index']);
+
+    // Rute untuk Peserta Kelas & Mahasiswa
+    Route::get('/classes/participants', [ClassParticipantController::class, 'index']);
+    Route::post('/classes/participants', [ClassParticipantController::class, 'store']);
+    Route::delete('/classes/participants/{id}', [ClassParticipantController::class, 'destroy']);
+    
+    Route::get('/tasks', [TaskController::class, 'index']);
+
+    Route::get('/departments', function () {
+        $jurusan = \Illuminate\Support\Facades\DB::table('jurusan')->get();
+        return response()->json($jurusan);
+    });
+    
+    // Endpoint untuk mengambil daftar mahasiswa
+    Route::get('/students', [App\Http\Controllers\StudentController::class, 'index']);
+
+    Route::get('/academic-classes/by-jurusan/{jurusanId}', [AcademicClassController::class, 'getClassesByJurusan']);
+
+    Route::get('/dosen/tasks', [TaskController::class, 'index']); 
+    Route::get('/dosen/tasks/{taskId}/submissions', [SubmissionController::class, 'getByTask']); 
+
+    Route::get('/tasks', [TaskController::class, 'index']); 
+    Route::post('/tasks', [TaskController::class, 'store']);
+    Route::put('/tasks/{id}', [TaskController::class, 'update']);
+    Route::delete('/tasks/{id}', [TaskController::class, 'destroy']);
+
+    Route::get('/tasks/{mahasiswaId}', [TaskController::class, 'index']);
 
     Route::get('/mahasiswa/profile', [StudentProfileController::class, 'show']);
     Route::put('/mahasiswa/profile', [StudentProfileController::class, 'update']);
@@ -80,22 +117,7 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::get('/tasks/{mahasiswaId}', [TaskController::class, 'index']);
 Route::get('/matkul', [MatkulController::class, 'index']);
 
-Route::get('/departments', [
-    AdminJurusanController::class,
-    'index',
-]);
-
-Route::post('/admin/jurusan', [
-    AdminJurusanController::class,
-    'store',
-]);
-
-Route::put('/admin/jurusan/{id}', [
-    AdminJurusanController::class,
-    'update',
-]);
-
-Route::delete('/admin/jurusan/{id}', [
-    AdminJurusanController::class,
-    'destroy',
-]);
+Route::get('/departments', [AdminJurusanController::class, 'index']);
+Route::post('/admin/jurusan', [AdminJurusanController::class, 'store']);
+Route::put('/admin/jurusan/{id}', [AdminJurusanController::class, 'update']);
+Route::delete('/admin/jurusan/{id}', [AdminJurusanController::class, 'destroy']);

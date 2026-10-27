@@ -231,6 +231,27 @@ class AcademicClassController extends Controller
     }
 
     /**
+     * Mengambil daftar kelas berdasarkan jurusan untuk dropdown form tugas.
+     */
+    public function getClassesByJurusan(Request $request, int $jurusanId)
+    {
+        $classes = DB::table('kelas as k')
+            ->join('matkul as mk', 'k.matkul_id', '=', 'mk.id')
+            ->join('dosen as d', 'k.dosen_id', '=', 'd.id')
+            ->where('mk.jurusan_id', $jurusanId)
+            ->select(
+                'k.id',
+                'k.nama_kelas',
+                'mk.nama_matkul',
+                'd.nama as nama_dosen'
+            )
+            ->orderBy('k.nama_kelas')
+            ->get();
+
+        return response()->json($classes);
+    }
+
+    /**
      * Membuat kelas dan jadwal sekaligus.
      *
      * Jadwal ditolak jika:
