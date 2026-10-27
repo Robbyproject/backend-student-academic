@@ -30,6 +30,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/submissions', [SubmissionController::class, 'store']);
     Route::get('/submissions', [App\Http\Controllers\SubmissionController::class, 'index']);
 
+    Route::get('/dosen/tasks', [TaskController::class, 'index']); 
+    Route::get('/dosen/tasks/{taskId}/submissions', [SubmissionController::class, 'getByTask']); 
+
     Route::get('/tasks', [TaskController::class, 'index']); 
     Route::post('/tasks', [TaskController::class, 'store']);
     Route::put('/tasks/{id}', [TaskController::class, 'update']);
