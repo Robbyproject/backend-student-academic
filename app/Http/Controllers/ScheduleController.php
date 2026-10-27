@@ -8,9 +8,17 @@ use Illuminate\Support\Facades\DB;
 
 class ScheduleController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $schedules = DB::table('jadwal as j')
+        $user = $request->user();
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'Unauthenticated.',
+            ], 401);
+        }
+
+        $query = DB::table('jadwal as j')
             ->join('kelas as k', 'j.kelas_id', '=', 'k.id')
             ->join('matkul as mk', 'k.matkul_id', '=', 'mk.id')
             ->join('dosen as d', 'k.dosen_id', '=', 'd.id')
@@ -25,8 +33,58 @@ class ScheduleController extends Controller
                 'mk.kode_matkul',
                 'mk.nama_matkul',
                 'd.nama as nama_dosen'
-            )
-            ->orderBy('j.hari')
+            );
+
+        // Mahasiswa hanya melihat jadwal dari jurusannya.
+        if ($user->role === 'mahasiswa') {
+            $mahasiswa = DB::table('mahasiswa')
+                ->where('user_id', $user->id)
+                ->first(['jurusan_id']);
+
+            if (!$mahasiswa) {
+                return response()->json([
+                    'message' => 'Profil mahasiswa tidak ditemukan.',
+                ], 404);
+            }
+
+            $query->where('mk.jurusan_id', $mahasiswa->jurusan_id);
+        }
+
+        // Dosen hanya melihat jadwal kelas yang diajarnya.
+        elseif ($user->role === 'dosen') {
+            $dosen = DB::table('dosen')
+                ->where('user_id', $user->id)
+                ->first(['id']);
+
+            if (!$dosen) {
+                return response()->json([
+                    'message' => 'Profil dosen tidak ditemukan.',
+                ], 404);
+            }
+
+            $query->where('k.dosen_id', $dosen->id);
+        }
+
+        // Admin tetap dapat melihat semua jadwal.
+        elseif ($user->role !== 'admin') {
+            return response()->json([
+                'message' => 'Role tidak memiliki akses ke jadwal.',
+            ], 403);
+        }
+
+        $schedules = $query
+            ->orderByRaw("
+                CASE LOWER(TRIM(j.hari))
+                    WHEN 'senin' THEN 1
+                    WHEN 'selasa' THEN 2
+                    WHEN 'rabu' THEN 3
+                    WHEN 'kamis' THEN 4
+                    WHEN 'jumat' THEN 5
+                    WHEN 'sabtu' THEN 6
+                    WHEN 'minggu' THEN 7
+                    ELSE 8
+                END
+            ")
             ->orderBy('j.jam_mulai')
             ->get();
 
