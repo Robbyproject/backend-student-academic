@@ -25,6 +25,55 @@ Laravel is accessible, powerful, and provides tools required for large, robust a
 
 All KRS routes use Sanctum bearer tokens. Admin endpoints require a logged-in user with the `admin` role; student endpoints use the authenticated student's linked `mahasiswa` record.
 
+## Jurusan and lecturer directory API
+
+All directory endpoints require a Sanctum bearer token from an `admin` account. The list endpoints are intended for frontend selection forms:
+
+- `GET /api/admin/jurusan` lists departments.
+- `GET /api/admin/dosen` lists lecturers; use `?jurusan_id={id}` to filter by department.
+- `GET /api/admin/jurusan/{id}` and `GET /api/admin/dosen/{id}` return one record.
+- `POST` creates a department or lecturer; `PUT` replaces the editable fields and `PATCH` updates the fields supplied.
+- `DELETE` removes a department or lecturer only when it is not referenced by other academic data.
+
+Create a department with `{"kode_jurusan":"IF","nama_jurusan":"Informatika"}`. Creating a lecturer also creates its dosen-role login account in the same transaction:
+
+```json
+{
+  "nama": "Nama Dosen",
+  "nidn": "1234567890",
+  "email": "dosen@kampus.ac.id",
+  "password": "password-rahasia",
+  "jurusan_id": 1
+}
+```
+
+The lecturer list and detail responses include the linked account email. A lecturer can be created without an NIDN; when supplied, the NIDN must be exactly 10 digits and unique. Do not generate an unofficial NIDN: update it later with `PATCH /api/admin/dosen/{id}` after the official number is issued. Updating a lecturer also updates its account email; an optional `password` is hashed before being saved. Deleting a lecturer deletes the linked login account as well, but only if the lecturer is not assigned to any class.
+
+Create a mahasiswa account and its base academic profile with `POST /api/admin/users`:
+
+```json
+{
+  "nama": "Nama Mahasiswa",
+  "email": "mahasiswa@kampus.ac.id",
+  "password": "password-rahasia",
+  "jurusan_id": 1,
+  "angkatan": 2026
+}
+```
+
+The backend creates the login account and academic profile in one transaction. The NIM is generated as an 8-digit, globally increasing number and returned in the response; clients must not provide or change it. Email addresses must use a configured campus domain. The default is `kampus.ac.id`; configure a comma-separated allowlist using `CAMPUS_EMAIL_DOMAINS` in the application environment, such as `kampus.ac.id,alumni.kampus.ac.id`.
+
+After login, the student can call `GET /api/mahasiswa/profile` to check whether personal profile data is complete, and `PUT /api/mahasiswa/profile` to submit or replace it:
+
+```json
+{
+  "no_telepon": "08123456789",
+  "jenis_kelamin": "Laki-laki"
+}
+```
+
+Profile endpoints require an authenticated `mahasiswa` account. The backend identifies the account from the bearer token; client-supplied `user_id`, `nim`, `jurusan_id`, and `angkatan` are rejected because those fields are assigned during account creation. Changing a lecturer's department is rejected if the lecturer has a class for a course in another department. The existing `GET /api/academic-classes/lecturers/{matkulId}` endpoint also returns lecturers filtered to the department of that course.
+
 ### Development student test account
 
 Run `StudentSeeder` to create the `robby@gmail.com` student account and its student profile. The seeder selects the existing Informatika (`IF`) department when available (otherwise the first department), and assigns test NIM `TEST-ROBBY-2026` and cohort 2026. It requires the password to be supplied through the process environment variable `ROBBY_STUDENT_PASSWORD`; it never stores the plaintext password in source. For PowerShell:
