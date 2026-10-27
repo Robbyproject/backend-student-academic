@@ -30,8 +30,12 @@ All KRS routes use Sanctum bearer tokens. Admin endpoints require a logged-in us
 All directory endpoints require a Sanctum bearer token from an `admin` account. The list endpoints are intended for frontend selection forms:
 
 - `GET /api/admin/jurusan` lists departments.
-- `GET /api/admin/dosen` lists lecturers; use `?jurusan_id={id}` to filter by department.
+- `GET /api/admin/dosen` lists lecturers with pagination (`data`, `current_page`, `last_page`, `total`); use `?jurusan_id={id}` to filter by department, `?page={n}`, and `?per_page={n}` (1–100, default 10).
 - `GET /api/admin/jurusan/{id}` and `GET /api/admin/dosen/{id}` return one record.
+- `GET /api/dosen/absensi/kelas` lists the logged-in lecturer's classes with department info and participant counts; `?jurusan_id={id}` filters by department.
+- `GET /api/dosen/absensi/kelas/{kelasId}?tanggal=Y-m-d` returns a paginated participant list (`?page`, `?per_page`, max 100) with each student's attendance status, semester (derived from angkatan, tahun ajaran, and term), and an attendance summary.
+- `GET /api/dosen/absensi/kelas/{kelasId}/pertemuan` lists recorded meeting dates with per-meeting summaries.
+- `POST /api/dosen/absensi/kelas/{kelasId}` saves manual attendance in bulk: `{ tanggal, entries: [{ mahasiswa_id, status: hadir|izin|sakit|alpa, catatan? }] }`; resubmitting overwrites the record. Only the owning lecturer can read or write these endpoints.
 - `POST` creates a department or lecturer; `PUT` replaces the editable fields and `PATCH` updates the fields supplied.
 - `DELETE` removes a department or lecturer only when it is not referenced by other academic data.
 

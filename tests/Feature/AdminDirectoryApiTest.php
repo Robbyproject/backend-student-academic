@@ -41,15 +41,15 @@ class AdminDirectoryApiTest extends TestCase
         $this->actingAsUser($adminId)
             ->getJson('/api/admin/dosen?jurusan_id='.$departmentId)
             ->assertOk()
-            ->assertJsonCount(1)
-            ->assertJsonPath('0.nama', 'Dosen Informatika')
-            ->assertJsonPath('0.nama_jurusan', 'Informatika')
-            ->assertJsonPath('0.email', 'lecturer@kampus.ac.id');
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.nama', 'Dosen Informatika')
+            ->assertJsonPath('data.0.nama_jurusan', 'Informatika')
+            ->assertJsonPath('data.0.email', 'lecturer@kampus.ac.id');
 
         $this->actingAsUser($adminId)
             ->getJson('/api/admin/dosen?jurusan_id='.$otherDepartmentId)
             ->assertOk()
-            ->assertExactJson([]);
+            ->assertJsonCount(0, 'data');
 
         $this->actingAsUser($adminId)
             ->patchJson('/api/admin/dosen/'.$lecturerId, [
@@ -256,6 +256,40 @@ class AdminDirectoryApiTest extends TestCase
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('nidn');
+    }
+
+    public function test_lecturer_list_supports_pagination(): void
+    {
+        $adminId = $this->createUser('admin@example.test', 'admin');
+        $departmentId = $this->createDepartment('IF', 'Informatika');
+
+        for ($count = 1; $count <= 11; $count += 1) {
+            $lecturerUserId = $this->createUser(
+                "lecturer-{$count}@kampus.ac.id",
+                'dosen',
+            );
+
+            DB::table('dosen')->insert([
+                'user_id' => $lecturerUserId,
+                'nidn' => null,
+                'nama' => 'Dosen '.str_pad((string) $count, 2, '0', STR_PAD_LEFT),
+                'jurusan_id' => $departmentId,
+                'created_at' => now(),
+            ]);
+        }
+
+        $this->actingAsUser($adminId)
+            ->getJson('/api/admin/dosen?page=1&per_page=10')
+            ->assertOk()
+            ->assertJsonCount(10, 'data')
+            ->assertJsonPath('last_page', 2)
+            ->assertJsonPath('total', 11);
+
+        $this->actingAsUser($adminId)
+            ->getJson('/api/admin/dosen?page=2&per_page=10')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.nama', 'Dosen 11');
     }
 
     public function test_directory_write_endpoints_require_an_admin(): void

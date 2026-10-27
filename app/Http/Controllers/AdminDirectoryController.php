@@ -109,6 +109,7 @@ class AdminDirectoryController extends Controller
 
         $validated = $request->validate([
             'jurusan_id' => ['sometimes', 'integer', 'exists:jurusan,id'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
         ]);
 
         $query = DB::table('dosen as d')
@@ -130,7 +131,9 @@ class AdminDirectoryController extends Controller
             $query->where('d.jurusan_id', $validated['jurusan_id']);
         }
 
-        return response()->json($query->get());
+        $perPage = $validated['per_page'] ?? 10;
+
+        return response()->json($query->paginate($perPage));
     }
 
     public function lecturer(Request $request, int $dosenId)

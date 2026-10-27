@@ -13,6 +13,7 @@ use App\Http\Controllers\TaskController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AdminJurusanController;
+use App\Http\Controllers\DosenAbsensiController;
 
 Route::post('/login', [AuthController::class, 'login']);
 
@@ -31,6 +32,13 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::get('/mahasiswa/profile', [StudentProfileController::class, 'show']);
     Route::put('/mahasiswa/profile', [StudentProfileController::class, 'update']);
+
+    Route::prefix('dosen/absensi')->group(function () {
+        Route::get('/kelas', [DosenAbsensiController::class, 'classes']);
+        Route::get('/kelas/{kelasId}/pertemuan', [DosenAbsensiController::class, 'sessions']);
+        Route::get('/kelas/{kelasId}', [DosenAbsensiController::class, 'participants']);
+        Route::post('/kelas/{kelasId}', [DosenAbsensiController::class, 'store']);
+    });
 
     Route::get('/krs/options', [KrsController::class, 'options']);
     Route::get('/krs', [KrsController::class, 'show']);
