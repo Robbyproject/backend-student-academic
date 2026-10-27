@@ -3,20 +3,14 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ScheduleController extends Controller
 {
     public function index(Request $request)
     {
-        $user = $request->user();
-
-        if (!$user) {
-            return response()->json([
-                'message' => 'Unauthenticated.',
-            ], 401);
-        }
+        $user = $request->user('sanctum') ?? $request->user();
 
         $query = DB::table('jadwal as j')
             ->join('kelas as k', 'j.kelas_id', '=', 'k.id')
@@ -36,37 +30,32 @@ class ScheduleController extends Controller
             );
 
         // Mahasiswa hanya melihat jadwal dari jurusannya.
-        if ($user->role === 'mahasiswa') {
+        if ($user && $user->role === 'mahasiswa') {
             $mahasiswa = DB::table('mahasiswa')
                 ->where('user_id', $user->id)
                 ->first(['jurusan_id']);
 
-            if (!$mahasiswa) {
+            if (! $mahasiswa) {
                 return response()->json([
                     'message' => 'Profil mahasiswa tidak ditemukan.',
                 ], 404);
             }
 
             $query->where('mk.jurusan_id', $mahasiswa->jurusan_id);
-        }
-
-        // Dosen hanya melihat jadwal kelas yang diajarnya.
-        elseif ($user->role === 'dosen') {
+        } elseif ($user && $user->role === 'dosen') {
+            // Dosen hanya melihat jadwal kelas yang diajarnya.
             $dosen = DB::table('dosen')
                 ->where('user_id', $user->id)
                 ->first(['id']);
 
-            if (!$dosen) {
+            if (! $dosen) {
                 return response()->json([
                     'message' => 'Profil dosen tidak ditemukan.',
                 ], 404);
             }
 
             $query->where('k.dosen_id', $dosen->id);
-        }
-
-        // Admin tetap dapat melihat semua jadwal.
-        elseif ($user->role !== 'admin') {
+        } elseif ($user && $user->role !== 'admin') {
             return response()->json([
                 'message' => 'Role tidak memiliki akses ke jadwal.',
             ], 403);
@@ -91,18 +80,32 @@ class ScheduleController extends Controller
         return response()->json($schedules);
     }
 
-        /**
+    /**
      * Membuat jadwal baru.
      */
     public function store(Request $request)
     {
         $data = $request->validate([
-            'kelas_id' => 'required|integer|exists:kelas,id',
-            'hari' => 'required|string|max:20',
-            'jam_mulai' => 'required|date_format:H:i',
-            'jam_selesai' => 'required|date_format:H:i|after:jam_mulai',
-            'ruangan' => 'nullable|string|max:100',
+            'kelas_id' => ['required', 'integer', 'exists:kelas,id'],
+            'hari' => ['required', 'string', 'max:20'],
+            'jam_mulai' => ['required', 'string'],
+            'jam_selesai' => ['required', 'string'],
+            'ruangan' => ['nullable', 'string', 'max:100'],
         ]);
+
+        $jamMulaiTs = strtotime(trim($data['jam_mulai']));
+        $jamSelesaiTs = strtotime(trim($data['jam_selesai']));
+
+        if ($jamMulaiTs === false || $jamSelesaiTs === false || $jamSelesaiTs <= $jamMulaiTs) {
+            throw ValidationException::withMessages([
+                'jam_selesai' => ['Jam selesai harus lebih besar dari jam mulai.'],
+            ]);
+        }
+
+        $data['jam_mulai'] = date('H:i', $jamMulaiTs);
+        $data['jam_selesai'] = date('H:i', $jamSelesaiTs);
+        $data['hari'] = trim($data['hari']);
+        $data['ruangan'] = isset($data['ruangan']) ? trim($data['ruangan']) : null;
 
         $this->checkScheduleConflict($data);
 
@@ -111,7 +114,8 @@ class ScheduleController extends Controller
             'hari' => $data['hari'],
             'jam_mulai' => $data['jam_mulai'],
             'jam_selesai' => $data['jam_selesai'],
-            'ruangan' => $data['ruangan'] ?? null,
+            'ruangan' => $data['ruangan'],
+            'created_at' => now(),
         ]);
 
         return response()->json([
@@ -129,19 +133,33 @@ class ScheduleController extends Controller
             ->where('id', $id)
             ->first();
 
-        if (!$existingSchedule) {
+        if (! $existingSchedule) {
             return response()->json([
                 'message' => 'Jadwal tidak ditemukan.',
             ], 404);
         }
 
         $data = $request->validate([
-            'kelas_id' => 'required|integer|exists:kelas,id',
-            'hari' => 'required|string|max:20',
-            'jam_mulai' => 'required|date_format:H:i',
-            'jam_selesai' => 'required|date_format:H:i|after:jam_mulai',
-            'ruangan' => 'nullable|string|max:100',
+            'kelas_id' => ['required', 'integer', 'exists:kelas,id'],
+            'hari' => ['required', 'string', 'max:20'],
+            'jam_mulai' => ['required', 'string'],
+            'jam_selesai' => ['required', 'string'],
+            'ruangan' => ['nullable', 'string', 'max:100'],
         ]);
+
+        $jamMulaiTs = strtotime(trim($data['jam_mulai']));
+        $jamSelesaiTs = strtotime(trim($data['jam_selesai']));
+
+        if ($jamMulaiTs === false || $jamSelesaiTs === false || $jamSelesaiTs <= $jamMulaiTs) {
+            throw ValidationException::withMessages([
+                'jam_selesai' => ['Jam selesai harus lebih besar dari jam mulai.'],
+            ]);
+        }
+
+        $data['jam_mulai'] = date('H:i', $jamMulaiTs);
+        $data['jam_selesai'] = date('H:i', $jamSelesaiTs);
+        $data['hari'] = trim($data['hari']);
+        $data['ruangan'] = isset($data['ruangan']) ? trim($data['ruangan']) : null;
 
         // Abaikan jadwal yang sedang diedit.
         $this->checkScheduleConflict($data, (int) $id);
@@ -153,7 +171,7 @@ class ScheduleController extends Controller
                 'hari' => $data['hari'],
                 'jam_mulai' => $data['jam_mulai'],
                 'jam_selesai' => $data['jam_selesai'],
-                'ruangan' => $data['ruangan'] ?? null,
+                'ruangan' => $data['ruangan'],
             ]);
 
         return response()->json([
@@ -170,7 +188,7 @@ class ScheduleController extends Controller
             ->where('id', $id)
             ->first();
 
-        if (!$schedule) {
+        if (! $schedule) {
             return response()->json([
                 'message' => 'Jadwal tidak ditemukan.',
             ], 404);
@@ -196,7 +214,7 @@ class ScheduleController extends Controller
             ->where('id', $data['kelas_id'])
             ->first();
 
-        if (!$kelas) {
+        if (! $kelas) {
             throw ValidationException::withMessages([
                 'kelas_id' => ['Kelas tidak ditemukan.'],
             ]);
@@ -205,12 +223,13 @@ class ScheduleController extends Controller
         // Cari jadwal pada hari dan waktu yang bertumpang tindih.
         $query = DB::table('jadwal as j')
             ->join('kelas as k', 'j.kelas_id', '=', 'k.id')
+            ->join('matkul as mk', 'k.matkul_id', '=', 'mk.id')
             ->whereRaw(
                 'LOWER(TRIM(j.hari)) = ?',
-                [strtolower(trim($data['hari']))]
+                [mb_strtolower(trim($data['hari']))]
             )
-            ->where('j.jam_mulai', '<', $data['jam_selesai'])
-            ->where('j.jam_selesai', '>', $data['jam_mulai']);
+            ->whereRaw('CAST(j.jam_mulai AS TIME) < CAST(? AS TIME)', [$data['jam_selesai']])
+            ->whereRaw('CAST(j.jam_selesai AS TIME) > CAST(? AS TIME)', [$data['jam_mulai']]);
 
         // Saat update, kecualikan jadwal yang sedang diedit.
         if ($excludeId !== null) {
@@ -220,8 +239,13 @@ class ScheduleController extends Controller
         $existingSchedules = $query->select(
             'j.id',
             'j.kelas_id',
+            'j.hari',
+            'j.jam_mulai',
+            'j.jam_selesai',
             'j.ruangan',
-            'k.dosen_id'
+            'k.nama_kelas',
+            'k.dosen_id',
+            'mk.nama_matkul'
         )->get();
 
         $errors = [];
@@ -230,7 +254,7 @@ class ScheduleController extends Controller
             // 1. Kelas yang sama tidak boleh memiliki jadwal bersamaan.
             if ((int) $schedule->kelas_id === (int) $data['kelas_id']) {
                 $errors['kelas_id'] =
-                    'Kelas sudah memiliki jadwal pada waktu tersebut.';
+                    'Kelas ini sudah memiliki jadwal pada hari dan waktu yang bertabrakan.';
             }
 
             // 2. Dosen yang sama tidak boleh mengajar bersamaan.
@@ -239,8 +263,14 @@ class ScheduleController extends Controller
                 $schedule->dosen_id !== null &&
                 (int) $schedule->dosen_id === (int) $kelas->dosen_id
             ) {
-                $errors['dosen_id'] =
-                    'Dosen sudah memiliki jadwal pada waktu tersebut.';
+                $errors['dosen_id'] = sprintf(
+                    'Dosen sudah memiliki jadwal mengajar kelas %s (%s) pada hari %s pukul %s–%s.',
+                    $schedule->nama_matkul,
+                    $schedule->nama_kelas,
+                    $schedule->hari,
+                    substr((string) $schedule->jam_mulai, 0, 5),
+                    substr((string) $schedule->jam_selesai, 0, 5)
+                );
             }
 
             // 3. Ruangan yang sama tidak boleh dipakai bersamaan.
@@ -252,12 +282,19 @@ class ScheduleController extends Controller
                 $existingRoom !== '' &&
                 strcasecmp($newRoom, $existingRoom) === 0
             ) {
-                $errors['ruangan'] =
-                    'Ruangan sudah digunakan pada waktu tersebut.';
+                $errors['ruangan'] = sprintf(
+                    'Ruangan %s sudah digunakan oleh kelas %s (%s) pada hari %s pukul %s–%s.',
+                    $schedule->ruangan,
+                    $schedule->nama_matkul,
+                    $schedule->nama_kelas,
+                    $schedule->hari,
+                    substr((string) $schedule->jam_mulai, 0, 5),
+                    substr((string) $schedule->jam_selesai, 0, 5)
+                );
             }
         }
 
-        if (!empty($errors)) {
+        if (! empty($errors)) {
             throw ValidationException::withMessages($errors);
         }
     }

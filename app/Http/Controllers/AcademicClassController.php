@@ -16,11 +16,11 @@ class AcademicClassController extends Controller
      */
     public function index(Request $request)
     {
-        $user = $request->user();
+        $user = $request->user('sanctum') ?? $request->user();
 
         if (
-            !$user ||
-            !in_array($user->role, ['admin', 'mahasiswa', 'dosen'], true)
+            $user &&
+            ! in_array($user->role, ['admin', 'mahasiswa', 'dosen'], true)
         ) {
             abort(403, 'Role tidak memiliki akses ke kelas akademik.');
         }
@@ -47,12 +47,12 @@ class AcademicClassController extends Controller
                 'd.nama as nama_dosen'
             );
 
-        if ($user->role === 'mahasiswa') {
+        if ($user && $user->role === 'mahasiswa') {
             $mahasiswa = DB::table('mahasiswa')
                 ->where('user_id', $user->id)
                 ->first(['id', 'jurusan_id']);
 
-            if (!$mahasiswa) {
+            if (! $mahasiswa) {
                 return response()->json([
                     'message' => 'Profil mahasiswa tidak ditemukan.',
                 ], 404);
@@ -61,12 +61,12 @@ class AcademicClassController extends Controller
             $query->where('mk.jurusan_id', $mahasiswa->jurusan_id);
         }
 
-        if ($user->role === 'dosen') {
+        if ($user && $user->role === 'dosen') {
             $dosen = DB::table('dosen')
                 ->where('user_id', $user->id)
                 ->first(['id']);
 
-            if (!$dosen) {
+            if (! $dosen) {
                 return response()->json([
                     'message' => 'Profil dosen tidak ditemukan.',
                 ], 404);
@@ -88,7 +88,7 @@ class AcademicClassController extends Controller
 
         $schedulesByClass = collect();
 
-        if (!empty($classIds)) {
+        if (! empty($classIds)) {
             $schedulesByClass = DB::table('jadwal')
                 ->whereIn('kelas_id', $classIds)
                 ->orderByRaw("
@@ -114,8 +114,8 @@ class AcademicClassController extends Controller
                     ->get($class->id, collect())
                     ->map(function ($schedule) {
                         return $schedule->hari . ' ' .
-                            substr($schedule->jam_mulai, 0, 5) . ' - ' .
-                            substr($schedule->jam_selesai, 0, 5) .
+                            substr((string) $schedule->jam_mulai, 0, 5) . ' - ' .
+                            substr((string) $schedule->jam_selesai, 0, 5) .
                             ' (' . ($schedule->ruangan ?? '-') . ')';
                     })
                     ->values()
@@ -165,7 +165,7 @@ class AcademicClassController extends Controller
             )
             ->first();
 
-        if (!$class) {
+        if (! $class) {
             return response()->json([
                 'message' => 'Kelas tidak ditemukan.',
             ], 404);
@@ -215,7 +215,7 @@ class AcademicClassController extends Controller
             ->where('id', $matkulId)
             ->first();
 
-        if (!$matkul) {
+        if (! $matkul) {
             return response()->json([
                 'message' => 'Mata kuliah tidak ditemukan.',
             ], 404);
@@ -236,7 +236,6 @@ class AcademicClassController extends Controller
      * Jadwal ditolak jika:
      * - Ruangan sama dan waktu bertabrakan.
      * - Dosen sama dan waktu bertabrakan.
-     * - Kelas yang sama sudah memiliki jadwal bertabrakan.
      */
     public function store(Request $request)
     {
@@ -279,7 +278,7 @@ class AcademicClassController extends Controller
             ->where('id', $validated['matkul_id'])
             ->first();
 
-        if (!$matkul) {
+        if (! $matkul) {
             return response()->json([
                 'message' => 'Mata kuliah tidak ditemukan.',
             ], 404);
@@ -289,7 +288,7 @@ class AcademicClassController extends Controller
             ->where('id', $validated['dosen_id'])
             ->first();
 
-        if (!$dosen) {
+        if (! $dosen) {
             return response()->json([
                 'message' => 'Dosen tidak ditemukan.',
             ], 404);
@@ -317,10 +316,11 @@ class AcademicClassController extends Controller
 
             DB::table('jadwal')->insert([
                 'kelas_id' => $classId,
-                'hari' => $validated['hari'],
+                'hari' => trim($validated['hari']),
                 'jam_mulai' => $validated['jam_mulai'],
                 'jam_selesai' => $validated['jam_selesai'],
                 'ruangan' => trim($validated['ruangan']),
+                'created_at' => now(),
             ]);
 
             return [
@@ -335,12 +335,13 @@ class AcademicClassController extends Controller
 
         return response()->json([
             'message' => 'Kelas dan jadwal berhasil dibuat.',
+            'kelas_id' => $result['id'],
             'data' => $result,
         ], 201);
     }
 
     /**
-     * Memeriksa bentrok jadwal dalam tahun ajaran dan semester yang sama.
+     * Memeriksa bentrok jadwal pada hari dan rentang waktu yang beririsan.
      */
     private function checkScheduleConflict(array $data): void
     {
@@ -349,11 +350,10 @@ class AcademicClassController extends Controller
 
         $conflicts = DB::table('jadwal as j')
             ->join('kelas as k', 'j.kelas_id', '=', 'k.id')
+            ->join('matkul as mk', 'k.matkul_id', '=', 'mk.id')
             ->whereRaw('LOWER(TRIM(j.hari)) = ?', [$hari])
-            ->where('k.tahun_ajaran', $data['tahun_ajaran'])
-            ->where('k.term', $data['term'])
-            ->where('j.jam_mulai', '<', $data['jam_selesai'])
-            ->where('j.jam_selesai', '>', $data['jam_mulai'])
+            ->whereRaw('CAST(j.jam_mulai AS TIME) < CAST(? AS TIME)', [$data['jam_selesai']])
+            ->whereRaw('CAST(j.jam_selesai AS TIME) > CAST(? AS TIME)', [$data['jam_mulai']])
             ->where(function ($query) use ($data, $ruangan) {
                 $query
                     ->whereRaw(
@@ -369,7 +369,8 @@ class AcademicClassController extends Controller
                 'j.ruangan',
                 'k.id as kelas_id',
                 'k.nama_kelas',
-                'k.dosen_id'
+                'k.dosen_id',
+                'mk.nama_matkul'
             )
             ->get();
 
@@ -380,11 +381,8 @@ class AcademicClassController extends Controller
         $conflict = $conflicts->first();
         $reasons = [];
 
-        $sameRoom = mb_strtolower(trim($conflict->ruangan ?? ''))
-            === $ruangan;
-
-        $sameLecturer = (int) $conflict->dosen_id
-            === (int) $data['dosen_id'];
+        $sameRoom = mb_strtolower(trim($conflict->ruangan ?? '')) === $ruangan;
+        $sameLecturer = (int) $conflict->dosen_id === (int) $data['dosen_id'];
 
         if ($sameRoom) {
             $reasons[] = "ruangan {$conflict->ruangan}";
@@ -397,13 +395,13 @@ class AcademicClassController extends Controller
         throw ValidationException::withMessages([
             'jadwal' => [
                 'Jadwal bentrok dengan kelas '
-                . $conflict->nama_kelas
+                . $conflict->nama_matkul . ' (' . $conflict->nama_kelas . ')'
                 . ' pada hari '
                 . $conflict->hari
                 . ', pukul '
-                . substr($conflict->jam_mulai, 0, 5)
+                . substr((string) $conflict->jam_mulai, 0, 5)
                 . '–'
-                . substr($conflict->jam_selesai, 0, 5)
+                . substr((string) $conflict->jam_selesai, 0, 5)
                 . '. Bentrok pada '
                 . implode(' dan ', $reasons)
                 . '. Silakan pilih jadwal lain.',

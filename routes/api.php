@@ -3,8 +3,10 @@
 use App\Http\Controllers\AcademicClassController;
 use App\Http\Controllers\AdminAcademicController;
 use App\Http\Controllers\AdminDirectoryController;
+use App\Http\Controllers\AdminJurusanController;
 use App\Http\Controllers\AdminKrsController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\DosenAbsensiController;
 use App\Http\Controllers\KrsController;
 use App\Http\Controllers\MatkulController;
 use App\Http\Controllers\ScheduleController;
@@ -12,47 +14,28 @@ use App\Http\Controllers\StudentProfileController;
 use App\Http\Controllers\TaskController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\AdminJurusanController;
-use App\Http\Controllers\DosenAbsensiController;
 
 Route::post('/login', [AuthController::class, 'login']);
+
+// Route kelas dan jadwal menggunakan pengecekan $request->user('sanctum') di dalam controller,
+// sehingga tetap memfilter sesuai role jika token dikirim, dan tidak memicu error redirect login (Failed to fetch)
+// jika ada komponen frontend yang memanggil endpoint tanpa header Authorization.
+Route::get('/academic-classes', [AcademicClassController::class, 'index']);
+Route::get('/academic-classes/lecturers/{matkulId}', [AcademicClassController::class, 'lecturersByCourse']);
+Route::get('/academic-classes/{id}', [AcademicClassController::class, 'show']);
 
 Route::get('/schedules', [ScheduleController::class, 'index']);
 Route::post('/schedules', [ScheduleController::class, 'store']);
 Route::put('/schedules/{id}', [ScheduleController::class, 'update']);
 Route::delete('/schedules/{id}', [ScheduleController::class, 'destroy']);
 
-
-// Route::get('/academic-classes', [AcademicClassController::class, 'index']);
 Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/academic-classes', [AcademicClassController::class, 'index']);
-    Route::get('/academic-classes/{id}', [AcademicClassController::class, 'show']);
-
-    Route::get('/academic-classes', [
-        AcademicClassController::class,
-        'index',
-    ]);
-    Route::get('/academic-classes/{id}', [
-        AcademicClassController::class,
-        'show',
-    ]);
-
-    Route::post(
-        '/admin/academic-classes',
-        [AcademicClassController::class, 'store']
-    );
-
-    Route::get('/schedules', [ScheduleController::class, 'index']);
-    Route::post('/schedules', [ScheduleController::class, 'store']);
-    Route::put('/schedules/{id}', [ScheduleController::class, 'update']);
-    Route::delete('/schedules/{id}', [ScheduleController::class, 'destroy']);
-
-
     Route::post('/change-password', [AuthController::class, 'changePassword']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
+
     Route::get('/mahasiswa/profile', [StudentProfileController::class, 'show']);
     Route::put('/mahasiswa/profile', [StudentProfileController::class, 'update']);
 
@@ -95,10 +78,7 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 Route::get('/tasks/{mahasiswaId}', [TaskController::class, 'index']);
-// Route::get('/academic-classes/{id}', [AcademicClassController::class, 'show']);
 Route::get('/matkul', [MatkulController::class, 'index']);
-Route::get('/academic-classes/lecturers/{matkulId}', [AcademicClassController::class, 'lecturersByCourse']);
-
 
 Route::get('/departments', [
     AdminJurusanController::class,

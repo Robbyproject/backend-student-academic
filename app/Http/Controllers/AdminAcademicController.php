@@ -88,8 +88,8 @@ class AdminAcademicController extends Controller
             'term' => 'required|in:ganjil,genap',
 
             'hari' => 'required|string|max:20',
-            'jam_mulai' => 'required',
-            'jam_selesai' => 'required',
+            'jam_mulai' => 'required|string',
+            'jam_selesai' => 'required|string',
             'ruangan' => 'required|string|max:50',
         ]);
 
@@ -97,6 +97,15 @@ class AdminAcademicController extends Controller
         if ((int) $yearEnd !== (int) $yearStart + 1) {
             throw ValidationException::withMessages([
                 'tahun_ajaran' => 'Tahun ajaran harus berupa dua tahun berurutan, misalnya 2026/2027.',
+            ]);
+        }
+
+        $jamMulai = trim($validated['jam_mulai']);
+        $jamSelesai = trim($validated['jam_selesai']);
+
+        if (strtotime($jamSelesai) === false || strtotime($jamMulai) === false || strtotime($jamSelesai) <= strtotime($jamMulai)) {
+            throw ValidationException::withMessages([
+                'jam_selesai' => 'Jam selesai harus lebih besar dari jam mulai.',
             ]);
         }
 
@@ -120,29 +129,41 @@ class AdminAcademicController extends Controller
             ], 404);
         }
 
-        // Pastikan dosen dan mata kuliah berasal
-        // dari jurusan yang sama.
+        // Pastikan dosen dan mata kuliah berasal dari jurusan yang sama.
         if ((int) $dosen->jurusan_id !== (int) $matkul->jurusan_id) {
             return response()->json([
                 'message' => 'Dosen dan mata kuliah harus berasal dari jurusan yang sama.',
             ], 422);
         }
 
-        $kelasId = DB::transaction(function () use ($validated) {
+        $hari = trim($validated['hari']);
+        $ruangan = trim($validated['ruangan']);
+
+        $kelasId = DB::transaction(function () use ($validated, $dosen, $hari, $ruangan, $jamMulai, $jamSelesai) {
+            // Validasi bentrok ruangan dan dosen sebelum menyimpan kelas & jadwal
+            $this->ensureNoScheduleConflict(
+                hari: $hari,
+                jamMulai: $jamMulai,
+                jamSelesai: $jamSelesai,
+                ruangan: $ruangan,
+                dosenId: (int) $validated['dosen_id'],
+                namaDosen: $dosen->nama
+            );
+
             $kelasId = DB::table('kelas')->insertGetId([
                 'matkul_id' => $validated['matkul_id'],
                 'dosen_id' => $validated['dosen_id'],
-                'nama_kelas' => $validated['nama_kelas'],
+                'nama_kelas' => trim($validated['nama_kelas']),
                 'tahun_ajaran' => $validated['tahun_ajaran'],
                 'term' => $validated['term'],
             ]);
 
             DB::table('jadwal')->insert([
                 'kelas_id' => $kelasId,
-                'hari' => $validated['hari'],
-                'jam_mulai' => $validated['jam_mulai'],
-                'jam_selesai' => $validated['jam_selesai'],
-                'ruangan' => $validated['ruangan'],
+                'hari' => $hari,
+                'jam_mulai' => $jamMulai,
+                'jam_selesai' => $jamSelesai,
+                'ruangan' => $ruangan,
                 'created_at' => now(),
             ]);
 
@@ -180,6 +201,102 @@ class AdminAcademicController extends Controller
         ]);
 
         return response()->json(['message' => 'Periode kelas berhasil diperbarui.']);
+    }
+
+    /**
+     * Cek apakah ada jadwal yang bentrok pada hari dan rentang jam yang beririsan:
+     * 1. Ruangan yang sama tidak boleh dipakai dua kelas pada waktu yang bertabrakan.
+     * 2. Dosen yang sama tidak boleh mengajar dua kelas pada waktu yang bertabrakan.
+     */
+    private function ensureNoScheduleConflict(
+        string $hari,
+        string $jamMulai,
+        string $jamSelesai,
+        string $ruangan,
+        int $dosenId,
+        string $namaDosen,
+        ?int $ignoreKelasId = null
+    ): void {
+        // 1. Cek bentrok ruangan pada hari dan waktu yang beririsan
+        $roomConflictQuery = DB::table('jadwal as j')
+            ->join('kelas as k', 'k.id', '=', 'j.kelas_id')
+            ->join('matkul as m', 'm.id', '=', 'k.matkul_id')
+            ->whereRaw('LOWER(TRIM(j.hari)) = LOWER(TRIM(?))', [$hari])
+            ->whereRaw('LOWER(TRIM(j.ruangan)) = LOWER(TRIM(?))', [$ruangan])
+            ->where('j.jam_mulai', '<', $jamSelesai)
+            ->where('j.jam_selesai', '>', $jamMulai)
+            ->select(
+                'k.nama_kelas',
+                'm.nama_matkul',
+                'j.hari',
+                'j.jam_mulai',
+                'j.jam_selesai',
+                'j.ruangan'
+            );
+
+        if ($ignoreKelasId !== null) {
+            $roomConflictQuery->where('k.id', '!=', $ignoreKelasId);
+        }
+
+        $roomConflict = $roomConflictQuery->first();
+
+        if ($roomConflict) {
+            $msg = sprintf(
+                'Jadwal bentrok: Ruangan %s sudah digunakan untuk kelas %s (%s) pada hari %s pukul %s - %s.',
+                $roomConflict->ruangan,
+                $roomConflict->nama_matkul,
+                $roomConflict->nama_kelas,
+                $roomConflict->hari,
+                substr((string) $roomConflict->jam_mulai, 0, 5),
+                substr((string) $roomConflict->jam_selesai, 0, 5)
+            );
+
+            throw ValidationException::withMessages([
+                'ruangan' => [$msg],
+                'jadwal' => [$msg],
+            ]);
+        }
+
+        // 2. Cek bentrok jadwal mengajar dosen pada hari dan waktu yang beririsan
+        $dosenConflictQuery = DB::table('jadwal as j')
+            ->join('kelas as k', 'k.id', '=', 'j.kelas_id')
+            ->join('matkul as m', 'm.id', '=', 'k.matkul_id')
+            ->whereRaw('LOWER(TRIM(j.hari)) = LOWER(TRIM(?))', [$hari])
+            ->where('k.dosen_id', $dosenId)
+            ->where('j.jam_mulai', '<', $jamSelesai)
+            ->where('j.jam_selesai', '>', $jamMulai)
+            ->select(
+                'k.nama_kelas',
+                'm.nama_matkul',
+                'j.hari',
+                'j.jam_mulai',
+                'j.jam_selesai',
+                'j.ruangan'
+            );
+
+        if ($ignoreKelasId !== null) {
+            $dosenConflictQuery->where('k.id', '!=', $ignoreKelasId);
+        }
+
+        $dosenConflict = $dosenConflictQuery->first();
+
+        if ($dosenConflict) {
+            $msg = sprintf(
+                'Jadwal bentrok: Dosen %s sudah mengajar kelas %s (%s) di ruangan %s pada hari %s pukul %s - %s.',
+                $namaDosen,
+                $dosenConflict->nama_matkul,
+                $dosenConflict->nama_kelas,
+                $dosenConflict->ruangan,
+                $dosenConflict->hari,
+                substr((string) $dosenConflict->jam_mulai, 0, 5),
+                substr((string) $dosenConflict->jam_selesai, 0, 5)
+            );
+
+            throw ValidationException::withMessages([
+                'dosen_id' => [$msg],
+                'jadwal' => [$msg],
+            ]);
+        }
     }
 
     private function authorizeAdmin(Request $request): void
